@@ -1,0 +1,310 @@
+// backend/server.js
+// Complete Local Business Audit Tool API with all 8 services integrated
+// FIXED VERSION - Context binding and data flow issues resolved
+
+const express = require("express");
+const cors = require("cors");
+const { analyzeWebsite } = require("./services/websiteService");
+const { analyzeCompetitors } = require("./services/competitorService");
+const { analyzeKeywords } = require("./services/keywordService");
+const { analyzeCitations } = require("./services/citationService");
+const { analyzePageSpeed } = require("./services/pagespeedService");
+const { analyzeSchema } = require("./services/schemaService");
+const { analyzeReviews } = require("./services/reviewService");
+// 🔧 FIX 1: Import the class instance, not destructured method
+const auditProcessor = require("./services/auditProcessor");
+
+const app = express();
+const PORT = 3001;
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  }),
+);
+
+app.use(express.json());
+
+// 🔧 FIX 2: Add the missing health endpoint that troubleshooter expects
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "healthy", 
+    timestamp: new Date().toISOString(),
+    services: "all systems operational"
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.json({ status: "OK" });
+});
+
+app.post("/api/audit", async (req, res) => {
+  try {
+    console.log(
+      "📝 Comprehensive audit request received:",
+      req.body.businessName,
+    );
+
+    const startTime = Date.now();
+
+    // 🔧 FIX 3: Ensure proper location data mapping
+    const businessData = {
+      ...req.body,
+      // Ensure location fields are properly mapped
+      city: req.body.city || '',
+      state: req.body.state || '',
+      // Create combined location for backward compatibility
+      location: req.body.city && req.body.state 
+        ? `${req.body.city}, ${req.body.state}` 
+        : req.body.location || ''
+    };
+
+    console.log("📍 Business location data:", {
+      city: businessData.city,
+      state: businessData.state,
+      location: businessData.location
+    });
+
+    // 🔐 API Credentials - Using Codespaces Secrets (NO fallback keys for security)
+    const apiCredentials = {
+      // DataForSEO handles Maps/Citations/Competitors/Reviews
+      username: process.env.DATAFORSEO_USER,
+      password: process.env.DATAFORSEO_PASS,
+      
+      // OpenAI for keyword analysis
+      openaiApiKey: process.env.OPENAI_API_KEY,
+      
+      // Google PageSpeed for performance analysis
+      googleApiKey: process.env.GOOGLE_PAGESPEED_API_KEY,
+      
+      // Google Sheets for storing results (optional)
+      googleSheetsApiKey: process.env.GOOGLE_SHEETS_API_KEY
+    };
+
+    // 🔑 Debug: Check API keys status (remove in production)
+    console.log('🔑 API Keys Status:');
+    console.log('DataForSEO User:', apiCredentials.username ? '✅ SET' : '❌ MISSING');
+    console.log('DataForSEO Pass:', apiCredentials.password ? '✅ SET' : '❌ MISSING');
+    console.log('OpenAI:', apiCredentials.openaiApiKey ? '✅ SET' : '❌ MISSING');
+    console.log('Google PageSpeed:', apiCredentials.googleApiKey ? '✅ SET' : '❌ MISSING');
+    console.log('Google Sheets:', apiCredentials.googleSheetsApiKey ? '✅ SET' : '❌ MISSING');
+
+    // 🧪 Debug - Check what credentials are actually being passed to services
+    console.log('🧪 Debug - Credentials being passed to services:');
+    console.log('DataForSEO username exists:', !!apiCredentials.username);
+    console.log('DataForSEO password exists:', !!apiCredentials.password);
+    console.log('OpenAI key exists:', !!apiCredentials.openaiApiKey);
+    console.log('Google PageSpeed key exists:', !!apiCredentials.googleApiKey);
+
+    // STEP 1: Website Content Analysis
+    console.log("🌐 Step 1: Starting website analysis...");
+    const websiteResults = await analyzeWebsite(businessData);
+    console.log("✅ Website analysis complete");
+
+    // STEP 2: Competitor Analysis
+    console.log("🏆 Step 2: Starting competitor analysis...");
+    const competitorResults = await analyzeCompetitors(
+      businessData,
+      apiCredentials,
+    );
+    console.log("✅ Competitor analysis complete");
+
+    // STEP 3: Keyword Analysis
+    console.log("🔍 Step 3: Starting keyword analysis...");
+    const keywordResults = await analyzeKeywords(
+      websiteResults,
+      competitorResults,
+      apiCredentials,
+    );
+    console.log("✅ Keyword analysis complete");
+
+    // STEP 4: Citation Analysis
+    console.log("📊 Step 4: Starting citation analysis...");
+    const citationResults = await analyzeCitations(
+      businessData,
+      websiteResults,
+      competitorResults,
+      apiCredentials,
+    );
+    console.log("✅ Citation analysis complete");
+
+    // STEP 5: PageSpeed Analysis
+    console.log("⚡ Step 5: Starting PageSpeed analysis...");
+    const pagespeedResults = await analyzePageSpeed(businessData, apiCredentials);
+    console.log("✅ PageSpeed analysis complete");
+
+    // STEP 6: Schema Markup Analysis
+    console.log("🏗️ Step 6: Starting schema analysis...");
+    const schemaResults = await analyzeSchema(businessData);
+    console.log("✅ Schema analysis complete");
+
+    // STEP 7: Review & Reputation Analysis
+    console.log("🌟 Step 7: Starting review & reputation analysis...");
+    const reviewResults = await analyzeReviews(
+      businessData,
+      competitorResults,
+      apiCredentials,
+    );
+    console.log("✅ Review analysis complete");
+
+    // STEP 8: Final Audit Processing & Report Generation
+    console.log("📋 Step 8: Starting comprehensive audit processing...");
+    
+    // 🔧 FIX 4: Create combined data structure for processor
+    const businessDataWithResults = {
+      ...businessData,
+      allAnalysisResults: {
+        websiteResults,
+        competitorResults,
+        keywordResults,
+        citationResults,
+        pagespeedResults,
+        schemaResults,
+        reviewResults,
+      }
+    };
+
+    // 🔧 FIX 5: Call processor as method on class instance (preserves 'this' context)
+    const finalAuditResults = await auditProcessor.processAudit(businessDataWithResults);
+    console.log("✅ Comprehensive audit processing complete");
+
+    const executionTime = Date.now() - startTime;
+
+    // Enhanced audit results combining all services with final processing
+    const auditResults = {
+      // Core business information
+      businessName: businessData.businessName,
+      location: businessData.location,
+      website: businessData.website,
+
+      // Final processed results (primary output)
+      ...finalAuditResults,
+
+      // Raw service results for detailed analysis
+      serviceResults: {
+        websiteAnalysis: websiteResults,
+        competitorAnalysis: competitorResults,
+        keywordAnalysis: keywordResults,
+        citationAnalysis: citationResults,
+        pagespeedAnalysis: pagespeedResults,
+        schemaAnalysis: schemaResults,
+        reviewAnalysis: reviewResults,
+      },
+
+      // Enhanced audit summary
+      auditSummary:
+        finalAuditResults.auditSummary ||
+        `${businessData.businessName} comprehensive analysis completed successfully!`,
+
+      // Execution metadata
+      generatedAt: new Date().toISOString(),
+      executionTimeMs: executionTime,
+
+      // Service completion status
+      servicesCompleted: {
+        websiteAnalysis: websiteResults.success !== false,
+        competitorAnalysis: competitorResults.success !== false,
+        keywordAnalysis: keywordResults.success !== false,
+        citationAnalysis: citationResults.success !== false,
+        pagespeedAnalysis: pagespeedResults.success !== false,
+        schemaAnalysis: schemaResults.success !== false,
+        reviewAnalysis: reviewResults.success !== false,
+        finalProcessing: finalAuditResults.success !== false,
+      },
+
+      // Enhanced improvement opportunities from all services
+      allImprovementOpportunities: [
+        ...(websiteResults.improvementOpportunities || []),
+        ...(competitorResults.businessData?.improvementOpportunities || []),
+        ...(keywordResults.parsedSections?.missingServiceKeywords || []).map(
+          (kw) => `Target keyword: "${kw}"`,
+        ),
+        ...(citationResults.recommendations || []),
+        ...(pagespeedResults.recommendations || []),
+        ...(schemaResults.recommendations || []),
+        ...(reviewResults.recommendations || []),
+      ],
+
+      // Combined performance metrics
+      performanceMetrics: {
+        overallVisibilityScore: finalAuditResults.visibilityScore || 0,
+        websitePerformanceScore:
+          pagespeedResults.overallSummary?.averageScore || 0,
+        localContentScore: websiteResults.localContentScore || 0,
+        competitivePosition:
+          competitorResults.businessData?.completenessLevel || "Unknown",
+        reviewPerformance: {
+          businessReviewCount: reviewResults.businessReviewCount || 0,
+          businessRating: reviewResults.businessRating || 0,
+          competitorComparison: {
+            avgCompetitorReviews: reviewResults.avgCompetitorReviewCount || 0,
+            avgCompetitorRating: reviewResults.avgCompetitorRating || 0,
+          },
+        },
+        citationConsistency:
+          citationResults.consistencyScores?.napConsistency || 0,
+        schemaImplementation: schemaResults.score || 0,
+      },
+    };
+
+    console.log(`🎉 Complete audit finished in ${executionTime}ms`);
+    console.log(
+      `📊 Final visibility score: ${finalAuditResults.visibilityScore}/100`,
+    );
+    console.log(`🎯 Performance level: ${finalAuditResults.performanceLevel}`);
+    console.log(`⚠️ Issues found: ${finalAuditResults.totalImprovementsCount}`);
+
+    res.json({
+      success: true,
+      data: auditResults,
+    });
+  } catch (error) {
+    console.error("❌ Complete audit processing failed:", error);
+    res.status(500).json({
+      success: false,
+      error: "Complete audit processing failed",
+      message: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+});
+
+// Health check for individual services
+app.get("/api/health/services", (req, res) => {
+  res.json({
+    status: "OK",
+    services: {
+      websiteAnalysis: "Available",
+      competitorAnalysis: "Available",
+      keywordAnalysis: "Available",
+      citationAnalysis: "Available",
+      pagespeedAnalysis: "Available",
+      schemaAnalysis: "Available",
+      reviewAnalysis: "Available",
+      auditProcessor: "Available",
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(
+    `🚀 Local Business Audit Tool API running on http://localhost:${PORT}`,
+  );
+  console.log(`✅ Complete audit pipeline ready with 8 integrated services:`);
+  console.log(`   1. 🌐 Website Content Analysis`);
+  console.log(`   2. 🏆 Competitor Analysis & Benchmarking`);
+  console.log(`   3. 🔍 AI-Powered Keyword Analysis`);
+  console.log(`   4. 📊 Citation & NAP Consistency Analysis`);
+  console.log(`   5. ⚡ PageSpeed Performance Analysis`);
+  console.log(`   6. 🏗️ Schema Markup Validation`);
+  console.log(`   7. 🌟 Review & Reputation Analysis`);
+  console.log(`   8. 📋 Final Audit Processing & Report Generation`);
+  console.log(`🔑 API Integrations configured:`);
+  console.log(`   • DataForSEO API (Competitor, Citation, Maps & Review data)`);
+  console.log(`   • OpenAI API (AI keyword analysis)`);
+  console.log(`   • Google PageSpeed API (Performance metrics)`);
+  console.log(`   • Google Sheets API (Results storage) - Optional`);
+  console.log(`🎯 Ready to generate comprehensive local business audits!`);
+});
