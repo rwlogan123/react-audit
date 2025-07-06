@@ -1,4 +1,4 @@
-console.log("App Version: 1.1 - Alert Fixed");
+console.log("App Version: 1.2 - Using Mock API for Production Demo");
 // frontend/src/App.jsx
 // Updated with React Router while keeping all existing functionality
 
@@ -106,13 +106,18 @@ function AuditFlow() {
     try {
       let data;
       
-      // Check if we're in development mode
+      // TEMPORARY: Use mock API for both development and production
+      // This ensures your demo works on Vercel
+      console.log('Using mock API (temporary for demo)');
+      data = await mockAuditAPI(formData);
+      
+      /* 
+      // UNCOMMENT THIS SECTION when your Vercel API is ready:
       const isDevelopment = window.location.hostname === 'localhost' || 
                            window.location.hostname === '127.0.0.1' ||
                            window.location.hostname.includes('github.dev');
       
       if (isDevelopment) {
-        // Use mock API in development
         console.log('Using mock API for local development');
         data = await mockAuditAPI(formData);
       } else {
@@ -129,6 +134,7 @@ function AuditFlow() {
 
         data = await response.json();
       }
+      */
       
       // Store the audit results in sessionStorage for use in other components
       sessionStorage.setItem('auditResults', JSON.stringify(data));
