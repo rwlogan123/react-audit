@@ -1,9 +1,17 @@
 {
+  "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
+  "installCommand": "cd frontend && npm install",
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/$1"
     }
-  ]
+  ],
+  "functions": {
+    "api/audit.js": {
+      "runtime": "nodejs18.x"
+    }
+  }
 }
