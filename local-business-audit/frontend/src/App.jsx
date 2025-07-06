@@ -19,6 +19,79 @@ const ProtectedRoute = ({ children }) => {
   return authToken ? children : <Navigate to="/" />;
 };
 
+// Mock API function for local development
+const mockAuditAPI = async (formData) => {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  return {
+    success: true,
+    data: {
+      businessName: formData.businessName || "Sample Business",
+      location: `${formData.city || "City"}, ${formData.state || "State"}`,
+      businessType: formData.businessType || "Business Type",
+      visibilityScore: 75,
+      localContentScore: 10,
+      websiteScore: formData.website ? 55 : 0,
+      schemaScore: 0,
+      completenessScore: 92,
+      currentRank: 3,
+      reviewCount: 21,
+      rating: 4.8,
+      photoCount: 12,
+      tier1DirectoryCoverage: 33,
+      directoryLinksCount: 6,
+      pagespeedAnalysis: { 
+        mobileScore: 45, 
+        desktopScore: 55 
+      },
+      socialMediaAnalysis: { 
+        socialScore: 30, 
+        platforms: formData.businessContext?.socialMedia?.facebook ? ["facebook"] : [].concat(
+          formData.businessContext?.socialMedia?.instagram ? ["instagram"] : []
+        )
+      },
+      napAnalysis: { 
+        consistencyScore: 40 
+      },
+      citationAnalysis: { 
+        citationCompletionRate: 35,
+        tier1Coverage: 33
+      },
+      pageSpeed: "19.9s",
+      actionItems: {
+        critical: [
+          "Website speed is critically slow",
+          "Missing local SEO optimization", 
+          "No schema markup found"
+        ],
+        moderate: [
+          "Need more Google reviews",
+          "Social media presence is weak"
+        ]
+      },
+      competitors: [
+        {
+          name: "Top Competitor",
+          rank: 1,
+          reviews: 45,
+          rating: 4.9
+        },
+        {
+          name: "Second Competitor", 
+          rank: 2,
+          reviews: 38,
+          rating: 4.7
+        }
+      ],
+      auditSummary: `${formData.businessName || "Your business"} currently ranks #3 with a 4.8⭐ rating, but critical technical gaps are limiting your visibility potential. Your website's slow speed and missing local SEO are causing you to lose customers to competitors.`,
+      rawBusinessData: {
+        address: `${formData.address || "Address"}, ${formData.city || "City"}, ${formData.state || "State"}`
+      }
+    }
+  };
+};
+
 // Main audit flow component (your existing logic)
 function AuditFlow() {
   const [loading, setLoading] = useState(false);
@@ -30,17 +103,31 @@ function AuditFlow() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/audit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      let data;
+      
+      // Check if we're in development mode
+      const isDevelopment = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.hostname.includes('github.dev');
+      
+      if (isDevelopment) {
+        // Use mock API in development
+        console.log('Using mock API for local development');
+        data = await mockAuditAPI(formData);
+      } else {
+        // Use real API in production
+        const response = await fetch("/api/audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch audit results');
+        if (!response.ok) {
+          throw new Error('Failed to fetch audit results');
+        }
+
+        data = await response.json();
       }
-
-      const data = await response.json();
       
       // Store the audit results in sessionStorage for use in other components
       sessionStorage.setItem('auditResults', JSON.stringify(data));
