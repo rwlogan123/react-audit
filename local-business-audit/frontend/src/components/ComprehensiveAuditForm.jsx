@@ -734,7 +734,7 @@ const ComprehensiveAuditForm = ({ onSubmit, isLoading: externalLoading }) => {
       setTimeout(() => {
         setIsLoading(false);
         console.log('Audit data submitted:', auditData);
-        alert('🎉 Audit completed! Check console for data.');
+        console.log('Audit completed - no onSubmit handler provided');
       }, 3000);
     }
   }, [currentStep, formData, isUsingMockData, validateStep, onSubmit]);
