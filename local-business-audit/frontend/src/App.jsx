@@ -1,3 +1,4 @@
+console.log("App Version: 1.1 - Alert Fixed");
 // frontend/src/App.jsx
 // Updated with React Router while keeping all existing functionality
 
