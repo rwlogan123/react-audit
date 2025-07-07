@@ -1,4 +1,4 @@
-console.log("App Version: 1.2 - Using Mock API for Production Demo");
+console.log("App Version: 1.3 - Using Real Backend API");
 // frontend/src/App.jsx
 // Updated with React Router while keeping all existing functionality
 
@@ -14,6 +14,9 @@ import OnboardingFlowDemo from "./components/tabs/OnboardingFlowDemo"; // Demo v
 // import PaymentPage from "./components/PaymentPage";
 // import OnboardingFlow from "./components/OnboardingFlow";
 // import Dashboard from "./components/Dashboard";
+
+// API Configuration
+const API_URL = import.meta.env.VITE_API_URL || 'https://react-audit-backend.onrender.com';
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
@@ -107,13 +110,7 @@ function AuditFlow() {
     try {
       let data;
       
-      // TEMPORARY: Use mock API for both development and production
-      // This ensures your demo works on Vercel
-      console.log('Using mock API (temporary for demo)');
-      data = await mockAuditAPI(formData);
-      
-      /* 
-      // UNCOMMENT THIS SECTION when your Vercel API is ready:
+      // Check if we're in development mode
       const isDevelopment = window.location.hostname === 'localhost' || 
                            window.location.hostname === '127.0.0.1' ||
                            window.location.hostname.includes('github.dev');
@@ -123,19 +120,20 @@ function AuditFlow() {
         data = await mockAuditAPI(formData);
       } else {
         // Use real API in production
-        const response = await fetch("/api/audit", {
+        console.log('Using real backend API:', API_URL);
+        const response = await fetch(`${API_URL}/api/audit/submit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch audit results');
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch audit results');
         }
 
         data = await response.json();
       }
-      */
       
       // Store the audit results in sessionStorage for use in other components
       sessionStorage.setItem('auditResults', JSON.stringify(data));
