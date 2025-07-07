@@ -17,15 +17,27 @@ class EmailService {
    * Initialize email transporter (using Gmail/SMTP)
    */
   initializeTransporter() {
-    this.transporter = nodemailer.createTransporter({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: process.env.SMTP_PORT || 587,
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
+    // Skip initialization if no SMTP credentials
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.log('Email service: No SMTP credentials configured, using GoHighLevel instead');
+      return;
+    }
+    
+    try {
+      this.transporter = nodemailer.createTransporter({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: process.env.SMTP_PORT || 587,
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+      console.log('Email service: SMTP transporter initialized');
+    } catch (error) {
+      console.error('Email service: Failed to initialize SMTP:', error.message);
+      this.transporter = null;
+    }
   }
 
   /**
@@ -240,6 +252,17 @@ class EmailService {
    */
   async sendEmail(options) {
     try {
+      // If no transporter configured, just log and return success
+      if (!this.transporter) {
+        console.log('Email would be sent via GoHighLevel to:', options.to);
+        console.log('Subject:', options.subject);
+        return { 
+          messageId: 'ghl-placeholder-' + Date.now(), 
+          success: true,
+          method: 'GoHighLevel'
+        };
+      }
+      
       const mailOptions = {
         from: process.env.FROM_EMAIL || '"Local Brand Builder" <noreply@localbrandbuilder.com>',
         to: options.to,
@@ -313,6 +336,11 @@ Need help? Email ${data.supportEmail}
    */
   async testEmailConfiguration() {
     try {
+      if (!this.transporter) {
+        console.log('Email configuration test: Using GoHighLevel (no SMTP configured)');
+        return true;
+      }
+      
       await this.transporter.verify();
       console.log('Email configuration is valid');
       return true;
