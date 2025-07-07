@@ -48,7 +48,7 @@ app.use(limiter);
 
 app.use(
   cors({
-    origin: process.env.NODE_ENV === "production" ? process.env.FRONTEND_URL : "http://localhost:5173",
+    origin: process.env.NODE_ENV === "production" ? process.env.FRONTEND_URL : ["http://localhost:5173", "https://react-audit.vercel.app"],
     credentials: true,
   })
 );
@@ -417,7 +417,8 @@ app.post("/api/audit", async (req, res) => {
       website: businessData.website,
       place_id: businessData.businessId, // Use normalized ID
       location: businessData.location,
-      ipAddress: ipAddress // Store IP for rate limiting
+      ipAddress: ipAddress, // Store IP for rate limiting
+      email: businessData.email || req.body.email // Store email for recovery
     };
 
     // Save audit results to MongoDB
@@ -431,10 +432,21 @@ app.post("/api/audit", async (req, res) => {
     console.log(`🎯 Performance level: ${finalAuditResults.performanceLevel}`);
     console.log(`⚠️ Issues found: ${finalAuditResults.totalImprovementsCount}`);
 
+    // Return response in the format the frontend expects
     res.json({
       success: true,
       data: auditResults,
       auditId: saveResult.auditId,
+      contactId: `ghl_${Date.now()}`, // Generate contact ID for frontend
+      paymentLink: 'https://pay.example.com/checkout', // TODO: Replace with real payment link
+      results: {
+        visibilityScore: auditResults.performanceMetrics.overallVisibilityScore,
+        localSeoScore: auditResults.performanceMetrics.localContentScore || 0,
+        websiteScore: auditResults.performanceMetrics.websitePerformanceScore || 0,
+        socialScore: Math.round((auditResults.performanceMetrics.reviewPerformance.businessRating || 0) * 20), // Convert 5-star to percentage
+        competitorScore: competitorResults.businessData?.competitiveScore || 70,
+        overallScore: auditResults.performanceMetrics.overallVisibilityScore
+      },
       message: `Audit completed and saved with ID: ${saveResult.auditId}`
     });
   } catch (error) {
@@ -451,6 +463,151 @@ app.post("/api/audit", async (req, res) => {
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
+});
+
+// ===== GHL COMPATIBILITY ROUTES =====
+// These routes make your backend compatible with your frontend expectations
+
+// Alias for audit submission (frontend expects /api/audit/submit)
+app.post("/api/audit/submit", async (req, res) => {
+  // Forward to your existing audit endpoint
+  req.url = '/api/audit';
+  return app._router.handle(req, res);
+});
+
+// GHL contact endpoint - get audit data by contact ID
+app.get("/api/ghl/contact/:contactId", async (req, res) => {
+  try {
+    // Extract business ID from contact ID (you stored it as ghl_timestamp)
+    const contactId = req.params.contactId;
+    
+    // For now, let's extract timestamp and find recent audit
+    const timestamp = contactId.replace('ghl_', '');
+    const searchTime = new Date(parseInt(timestamp));
+    
+    // Search for audit created around that time
+    const db = database.getDb();
+    const audit = await db.collection("audits").findOne({
+      createdAt: {
+        $gte: new Date(searchTime.getTime() - 60000), // Within 1 minute
+        $lte: new Date(searchTime.getTime() + 60000)
+      }
+    });
+    
+    if (!audit) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+    
+    res.json({
+      businessInfo: {
+        businessName: audit.businessData.name,
+        businessType: audit.businessData.businessType || req.body.businessType || 'local business',
+        location: audit.businessData.location
+      },
+      auditData: {
+        ...audit.businessData,
+        visibilityScore: audit.data.visibilityScore || audit.data.performanceMetrics?.overallVisibilityScore,
+        localSeoScore: audit.data.performanceMetrics?.localContentScore || 0,
+        websiteScore: audit.data.performanceMetrics?.websitePerformanceScore || 0,
+        socialScore: Math.round((audit.data.performanceMetrics?.reviewPerformance?.businessRating || 0) * 20),
+        overallScore: audit.data.visibilityScore || audit.data.performanceMetrics?.overallVisibilityScore
+      }
+    });
+    
+  } catch (error) {
+    console.error('GHL contact lookup error:', error);
+    res.status(500).json({ error: 'Failed to get contact data' });
+  }
+});
+
+// GHL onboarding endpoint - save interview responses
+app.post("/api/ghl/onboarding/:contactId", async (req, res) => {
+  try {
+    const { responses } = req.body;
+    const contactId = req.params.contactId;
+    
+    // Store the onboarding responses in MongoDB
+    const db = database.getDb();
+    
+    // Create onboarding document
+    const onboardingData = {
+      contactId,
+      responses,
+      createdAt: new Date(),
+      status: 'completed'
+    };
+    
+    const result = await db.collection("onboarding").insertOne(onboardingData);
+    
+    console.log('Onboarding data saved:', result.insertedId);
+    
+    // TODO: Trigger content generation here
+    // You can integrate with your existing content routes
+    
+    res.json({
+      success: true,
+      interviewId: result.insertedId.toString(),
+      message: 'Onboarding data saved successfully'
+    });
+    
+  } catch (error) {
+    console.error('Onboarding save error:', error);
+    res.status(500).json({ error: 'Failed to save onboarding data' });
+  }
+});
+
+// Recovery endpoint - find audit by email
+app.post("/api/recover-audit", async (req, res) => {
+  try {
+    const { email, token } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+    
+    // Search for audits by email
+    const db = database.getDb();
+    const audit = await db.collection("audits").findOne({
+      "businessData.email": email
+    }, {
+      sort: { createdAt: -1 } // Get most recent
+    });
+    
+    if (!audit) {
+      return res.json({ found: false });
+    }
+    
+    res.json({
+      found: true,
+      businessInfo: {
+        businessName: audit.businessData.name,
+        businessType: audit.businessData.businessType || 'local business'
+      },
+      auditId: audit._id.toString(),
+      contactId: `ghl_${new Date(audit.createdAt).getTime()}` // Recreate contact ID
+    });
+    
+  } catch (error) {
+    console.error('Recovery error:', error);
+    res.status(500).json({ error: 'Recovery failed' });
+  }
+});
+
+// Content stats endpoint (if not already in your content routes)
+app.get("/api/content/user/:userId", async (req, res) => {
+  // Mock response until you implement full content generation
+  res.json({
+    content: [
+      { id: '1', type: 'blog', title: 'SEO Best Practices for Local Businesses', status: 'completed' },
+      { id: '2', type: 'social', title: 'Facebook Post - Special Offer', status: 'generating' }
+    ],
+    stats: {
+      total: 48,
+      completed: 12,
+      generating: 6,
+      pending: 30
+    }
+  });
 });
 
 // NEW MONGODB ENDPOINTS

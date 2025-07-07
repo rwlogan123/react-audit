@@ -9,6 +9,7 @@ import AuditDashboard from "./components/AuditDashboard";
 import ComprehensiveAuditForm from "./components/ComprehensiveAuditForm";
 import TabPlayground from "./components/playground/TabPlayground";
 import LandingPage from "./components/LandingPage";  // Make sure this component exists
+import OnboardingFlowDemo from "./components/tabs/OnboardingFlowDemo"; // Demo version for testing
 // TODO: Uncomment these as we create the components
 // import PaymentPage from "./components/PaymentPage";
 // import OnboardingFlow from "./components/OnboardingFlow";
@@ -288,6 +289,7 @@ function App() {
         <Route path="/" element={<AuditFlow />} />
         <Route path="/playground" element={<PlaygroundWrapper />} />
         <Route path="/upgrade" element={<LandingPage />} />
+        <Route path="/onboarding-demo" element={<OnboardingFlowDemo />} />
         
         {/* TODO: Uncomment these as we create the components
         <Route path="/payment" element={<PaymentPage />} />
