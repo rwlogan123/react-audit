@@ -27,11 +27,11 @@ const { analyzeReviews } = require("./services/reviewService");
 const auditProcessor = require("./services/auditProcessor");
 const auditLimiter = require("./services/auditLimiter");
 
-// Import new Local Brand Builder routes
-const landingRoutes = require('./routes/landing');
-const paymentRoutes = require('./routes/payment');
-const onboardingRoutes = require('./routes/onboarding');
-const contentRoutes = require('./routes/content');
+// Import new Local Brand Builder routes - COMMENTED OUT FOR DEPLOYMENT
+// const landingRoutes = require('./routes/landing');
+// const paymentRoutes = require('./routes/payment');
+// const onboardingRoutes = require('./routes/onboarding');
+// const contentRoutes = require('./routes/content');
 
 const app = express();
 const PORT = 3001;
@@ -58,11 +58,11 @@ app.use(express.json());
 // Raw body parser for webhooks (must be before other parsers)
 app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 
-// Add new Local Brand Builder route middlewares
-app.use('/api/landing', landingRoutes);
-app.use('/api/payment', paymentRoutes);
-app.use('/api/onboarding', onboardingRoutes);
-app.use('/api/content', contentRoutes);
+// Add new Local Brand Builder route middlewares - COMMENTED OUT FOR DEPLOYMENT
+// app.use('/api/landing', landingRoutes);
+// app.use('/api/payment', paymentRoutes);
+// app.use('/api/onboarding', onboardingRoutes);
+// app.use('/api/content', contentRoutes);
 
 // Initialize database connection
 async function initializeApp() {
