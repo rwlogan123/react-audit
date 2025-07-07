@@ -4,7 +4,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 
 // Models
-const Payment = require('../models/Payment');
+const Payment = require('../models/Paymentss');
 
 // Services
 const auditStorage = require('../services/auditStorage');
