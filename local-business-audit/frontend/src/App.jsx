@@ -1,15 +1,17 @@
-console.log("App Version: 1.3 - Using Real Backend API");
+console.log("App Version: 1.4 - Added ClientDashboard");
 // frontend/src/App.jsx
-// Updated with React Router while keeping all existing functionality
+// Updated with ClientDashboard for paid customers
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import "./App.css";
-import AuditDashboard from "./components/AuditDashboard";
+import AuditDashboard from "./dashboards/AuditDashboard/AuditDashboard"; // FIXED PATH
 import ComprehensiveAuditForm from "./components/ComprehensiveAuditForm";
 import TabPlayground from "./components/playground/TabPlayground";
 import LandingPage from "./components/LandingPage";  // Make sure this component exists
-import OnboardingFlowDemo from "./components/tabs/OnboardingFlowDemo"; // Demo version for testing
+import OnboardingFlowDemo from "./dashboards/AuditDashboard/tabs/OnboardingFlowDemo"; // FIXED PATH
+import ClientDashboard from "./dashboards/ClientDashboard/ClientDashboard"; // FIXED PATH - corrected to main ClientDashboard folder
+
 // TODO: Uncomment these as we create the components
 // import PaymentPage from "./components/PaymentPage";
 // import OnboardingFlow from "./components/OnboardingFlow";
@@ -168,6 +170,11 @@ function AuditFlow() {
     navigate('/playground');
   };
 
+  // Navigate to client dashboard (for testing)
+  const goToClientDashboard = () => {
+    navigate('/client');
+  };
+
   // Show results dashboard
   if (results) {
     return (
@@ -178,16 +185,36 @@ function AuditFlow() {
             top: "10px",
             right: "10px",
             zIndex: 1000,
-            background: "#10B981",
-            color: "white",
-            padding: "8px 16px",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "14px",
+            display: "flex",
+            gap: "8px"
           }}
-          onClick={goToPlayground}
         >
-          🛠️ Tab Playground
+          <div
+            style={{
+              background: "#10B981",
+              color: "white",
+              padding: "8px 16px",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "14px",
+            }}
+            onClick={goToPlayground}
+          >
+            🛠️ Tab Playground
+          </div>
+          <div
+            style={{
+              background: "#3B82F6",
+              color: "white",
+              padding: "8px 16px",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "14px",
+            }}
+            onClick={goToClientDashboard}
+          >
+            👥 Client Dashboard
+          </div>
         </div>
         <AuditDashboard auditData={results} onStartOver={handleStartOver} />
       </div>
@@ -234,16 +261,36 @@ function AuditFlow() {
           top: "10px",
           right: "10px",
           zIndex: 1000,
-          background: "#10B981",
-          color: "white",
-          padding: "8px 16px",
-          borderRadius: "6px",
-          cursor: "pointer",
-          fontSize: "14px",
+          display: "flex",
+          gap: "8px"
         }}
-        onClick={goToPlayground}
       >
-        🛠️ Tab Playground
+        <div
+          style={{
+            background: "#10B981",
+            color: "white",
+            padding: "8px 16px",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontSize: "14px",
+          }}
+          onClick={goToPlayground}
+        >
+          🛠️ Tab Playground
+        </div>
+        <div
+          style={{
+            background: "#3B82F6",
+            color: "white",
+            padding: "8px 16px",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontSize: "14px",
+          }}
+          onClick={goToClientDashboard}
+        >
+          👥 Client Dashboard
+        </div>
       </div>
       <ComprehensiveAuditForm onSubmit={handleFormSubmit} isLoading={loading} />
     </div>
@@ -278,6 +325,52 @@ function PlaygroundWrapper() {
   );
 }
 
+// Client Dashboard wrapper with navigation
+function ClientDashboardWrapper() {
+  const navigate = useNavigate();
+
+  // Get business info from sessionStorage if available (from audit)
+  const businessInfo = JSON.parse(sessionStorage.getItem('businessInfo') || '{}');
+  
+  return (
+    <div>
+      <div
+        style={{
+          position: "fixed",
+          top: "10px",
+          right: "10px",
+          zIndex: 1000,
+          background: "#2A3B4A",
+          color: "white",
+          padding: "8px 16px",
+          borderRadius: "6px",
+          cursor: "pointer",
+          fontSize: "14px",
+        }}
+        onClick={() => navigate('/')}
+      >
+        ← Back to Audit
+      </div>
+      <ClientDashboard 
+        businessId="demo-business-123"
+        businessName={businessInfo.businessName || "Sample Business"}
+        location={businessInfo.location || "Eagle Mountain, UT"}
+        userPlan={{ 
+          tier: 'professional',
+          projectStatus: {
+            websiteComplete: false,
+            contentApproved: false,
+            adsActive: true,
+            citationsOngoing: true,
+            reviewsActive: true
+          }
+        }}
+        user={{ name: "Demo Client" }}
+      />
+    </div>
+  );
+}
+
 // Main App component with routing
 function App() {
   return (
@@ -288,6 +381,10 @@ function App() {
         <Route path="/playground" element={<PlaygroundWrapper />} />
         <Route path="/upgrade" element={<LandingPage />} />
         <Route path="/onboarding-demo" element={<OnboardingFlowDemo />} />
+        
+        {/* NEW - Client Dashboard for paid customers */}
+        <Route path="/client" element={<ClientDashboardWrapper />} />
+        <Route path="/client/*" element={<ClientDashboardWrapper />} />
         
         {/* TODO: Uncomment these as we create the components
         <Route path="/payment" element={<PaymentPage />} />

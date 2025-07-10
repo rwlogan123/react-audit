@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Terminal Dashboard</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #f0f0f0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #1a1a1a;
+            padding: 1rem;
+            border-bottom: 2px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .search-box {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            color: #f0f0f0;
+            padding: 0.5rem;
+            border-radius: 4px;
+            width: 200px;
+        }
+
+        .btn {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #f0f0f0;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #333;
+            border-color: #666;
+        }
+
+        .btn.active {
+            background: #00ff00;
+            color: #0a0a0a;
+            border-color: #00ff00;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .terminal-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filters {
+            background: #1a1a1a;
+            padding: 0.5rem 1rem;
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid #333;
+        }
+
+        .filter-btn {
+            padding: 0.25rem 0.75rem;
+            border: 1px solid #333;
+            background: transparent;
+            color: #f0f0f0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-btn.active {
+            background: #333;
+            border-color: #666;
+        }
+
+        .filter-btn.info { border-color: #0080ff; }
+        .filter-btn.info.active { background: #0080ff; }
+        .filter-btn.success { border-color: #00ff00; }
+        .filter-btn.success.active { background: #00ff00; color: #0a0a0a; }
+        .filter-btn.warning { border-color: #ffaa00; }
+        .filter-btn.warning.active { background: #ffaa00; color: #0a0a0a; }
+        .filter-btn.error { border-color: #ff0040; }
+        .filter-btn.error.active { background: #ff0040; }
+
+        .terminal {
+            flex: 1;
+            background: #0a0a0a;
+            padding: 1rem;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 4px;
+            background: #111;
+            border-left: 3px solid #333;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .log-entry.info { border-left-color: #0080ff; }
+        .log-entry.success { border-left-color: #00ff00; }
+        .log-entry.warning { border-left-color: #ffaa00; }
+        .log-entry.error { border-left-color: #ff0040; }
+
+        .log-timestamp {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .log-type {
+            display: inline-block;
+            padding: 0.1rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            margin: 0 0.5rem;
+            text-transform: uppercase;
+        }
+
+        .log-type.info { background: #0080ff; color: white; }
+        .log-type.success { background: #00ff00; color: #0a0a0a; }
+        .log-type.warning { background: #ffaa00; color: #0a0a0a; }
+        .log-type.error { background: #ff0040; color: white; }
+
+        .log-message {
+            color: #f0f0f0;
+            margin: 0.25rem 0;
+        }
+
+        .log-data {
+            color: #888;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+            font-family: 'Monaco', monospace;
+        }
+
+        .metrics-panel {
+            width: 300px;
+            background: #1a1a1a;
+            border-left: 1px solid #333;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .metrics-panel h2 {
+            color: #00ff00;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .metric {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .metric-label {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            color: #00ff00;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: #00ff00;
+        }
+
+        .status-indicator.disconnected {
+            background: #ff0040;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🖥️ Backend Terminal Dashboard</h1>
+        <div class="controls">
+            <span class="status-indicator connected"></span>
+            <span id="connection-status">Connected</span>
+            <input type="text" class="search-box" placeholder="Search logs..." id="searchBox">
+            <button class="btn" onclick="clearLogs()">Clear</button>
+            <button class="btn" onclick="toggleMetrics()" id="metricsToggle">Metrics</button>
+            <select class="btn" onchange="exportLogs(this.value)">
+                <option value="">Export...</option>
+                <option value="json">JSON</option>
+                <option value="csv">CSV</option>
+                <option value="text">Text</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="terminal-container">
+            <div class="filters">
+                <button class="filter-btn active" onclick="toggleFilter('all')">All</button>
+                <button class="filter-btn info" onclick="toggleFilter('info')">Info</button>
+                <button class="filter-btn success" onclick="toggleFilter('success')">Success</button>
+                <button class="filter-btn warning" onclick="toggleFilter('warning')">Warning</button>
+                <button class="filter-btn error" onclick="toggleFilter('error')">Error</button>
+            </div>
+            <div class="terminal" id="terminal"></div>
+        </div>
+        <div class="metrics-panel" id="metricsPanel">
+            <h2>📊 Metrics</h2>
+            <div class="metric">
+                <div class="metric-label">Total Requests</div>
+                <div class="metric-value" id="totalRequests">0</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Success Rate</div>
+                <div class="metric-value" id="successRate">0%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Error Count</div>
+                <div class="metric-value" id="errorCount">0</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Avg Response Time</div>
+                <div class="metric-value" id="avgResponseTime">0ms</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Active Generations</div>
+                <div class="metric-value" id="activeGenerations">0</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Total Generated</div>
+                <div class="metric-value" id="totalGenerations">0</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let logs = [];
+        let activeFilter = 'all';
+        let searchTerm = '';
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            document.querySelector('.status-indicator').classList.add('connected');
+            document.querySelector('.status-indicator').classList.remove('disconnected');
+            document.getElementById('connection-status').textContent = 'Connected';
+        });
+
+        socket.on('disconnect', () => {
+            document.querySelector('.status-indicator').classList.remove('connected');
+            document.querySelector('.status-indicator').classList.add('disconnected');
+            document.getElementById('connection-status').textContent = 'Disconnected';
+        });
+
+        socket.on('initial-logs', (initialLogs) => {
+            logs = initialLogs;
+            renderLogs();
+        });
+
+        socket.on('new-log', (log) => {
+            logs.push(log);
+            if (logs.length > 1000) {
+                logs.shift();
+            }
+            if (shouldDisplayLog(log)) {
+                addLogToTerminal(log);
+                scrollToBottom();
+            }
+        });
+
+        socket.on('logs-cleared', () => {
+            logs = [];
+            document.getElementById('terminal').innerHTML = '';
+        });
+
+        socket.on('metrics-update', (metrics) => {
+            updateMetrics(metrics);
+        });
+
+        socket.on('export-data', (data) => {
+            downloadData(data);
+        });
+
+        // Functions
+        function renderLogs() {
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML = '';
+            logs.filter(shouldDisplayLog).forEach(log => addLogToTerminal(log));
+            scrollToBottom();
+        }
+
+        function shouldDisplayLog(log) {
+            const matchesFilter = activeFilter === 'all' || log.type === activeFilter;
+            const matchesSearch = !searchTerm || 
+                log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                JSON.stringify(log.data).toLowerCase().includes(searchTerm.toLowerCase());
+            return matchesFilter && matchesSearch;
+        }
+
+        function addLogToTerminal(log) {
+            const terminal = document.getElementById('terminal');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${log.type}`;
+            
+            const timestamp = new Date(log.timestamp).toLocaleTimeString();
+            const dataStr = Object.keys(log.data).length > 0 ? 
+                `<pre class="log-data">${JSON.stringify(log.data, null, 2)}</pre>` : '';
+            
+            logEntry.innerHTML = `
+                <span class="log-timestamp">${timestamp}</span>
+                <span class="log-type ${log.type}">${log.type}</span>
+                <div class="log-message">${log.message}</div>
+                ${dataStr}
+            `;
+            
+            terminal.appendChild(logEntry);
+        }
+
+        function scrollToBottom() {
+            const terminal = document.getElementById('terminal');
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function toggleFilter(filter) {
+            activeFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            renderLogs();
+        }
+
+        function clearLogs() {
+            if (confirm('Clear all logs?')) {
+                socket.emit('clear-logs');
+            }
+        }
+
+        function toggleMetrics() {
+            const panel = document.getElementById('metricsPanel');
+            const btn = document.getElementById('metricsToggle');
+            panel.classList.toggle('hidden');
+            btn.classList.toggle('active');
+        }
+
+        function updateMetrics(metrics) {
+            document.getElementById('totalRequests').textContent = metrics.totalRequests;
+            document.getElementById('errorCount').textContent = metrics.errorCount;
+            document.getElementById('activeGenerations').textContent = metrics.activeGenerations;
+            document.getElementById('totalGenerations').textContent = metrics.totalGenerations;
+            
+            const successRate = metrics.totalRequests > 0 ? 
+                ((metrics.successCount / metrics.totalRequests) * 100).toFixed(1) : 0;
+            document.getElementById('successRate').textContent = `${successRate}%`;
+            
+            const avgTime = metrics.totalRequests > 0 ? 
+                Math.round(metrics.totalResponseTime / metrics.totalRequests) : 0;
+            document.getElementById('avgResponseTime').textContent = `${avgTime}ms`;
+        }
+
+        function exportLogs(format) {
+            if (format) {
+                socket.emit('export-logs', format);
+                event.target.value = '';
+            }
+        }
+
+        function downloadData(data) {
+            const blob = new Blob([data], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `logs-${new Date().toISOString()}.${format}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Search functionality
+        document.getElementById('searchBox').addEventListener('input', (e) => {
+            searchTerm = e.target.value;
+            renderLogs();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'k':
+                        e.preventDefault();
+                        clearLogs();
+                        break;
+                    case 'f':
+                        e.preventDefault();
+                        document.getElementById('searchBox').focus();
+                        break;
+                    case 'm':
+                        e.preventDefault();
+                        toggleMetrics();
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

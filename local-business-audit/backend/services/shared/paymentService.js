@@ -2,7 +2,7 @@
 // Location: /services/shared/paymentService.js
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const Payment = require('../../backend/models/Payment');
+const Payment = require('../../models/Payment');
 const emailService = require('./emailService');
 
 class PaymentService {

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import AuditDashboard from "../AuditDashboard"; // Fixed import name
+import AuditDashboard from "../../dashboards/AuditDashboard/AuditDashboard"; // Fixed import path
 
 // Mock data structure that matches the API response
 const mockData = {

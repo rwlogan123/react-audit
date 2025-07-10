@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  businessName  String?
+  ghlContactId  String?  @unique
+  createdAt     DateTime @default(now())
+  
+  audits        Audit[]
+}
+
+model Audit {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  
+  // Form data
+  businessName     String
+  businessType     String
+  email            String
+  website          String?
+  location         String?
+  
+  // Scores
+  visibilityScore  Int?
+  localSeoScore    Int?
+  websiteScore     Int?
+  socialScore      Int?
+  overallScore     Int?
+  
+  // Raw data
+  formData         String?  // JSON string of all form data
+  
+  createdAt        DateTime @default(now())
+}
