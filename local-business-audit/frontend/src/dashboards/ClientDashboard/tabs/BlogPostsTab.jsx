@@ -1,5 +1,6 @@
 // File: src/dashboards/ClientDashboard/tabs/BlogPostsTab.jsx
 import React, { useState, useEffect } from 'react';
+import { contentApi } from '../../../api/contentApi';
 
 // Colors configuration
 const colors = {
@@ -10,67 +11,6 @@ const colors = {
   warning: "#F59E0B",
   danger: "#EF4444",
   info: "#3B82F6",
-};
-
-// API Functions (these should match your existing API)
-const API_BASE = 'http://localhost:5000/api';
-
-const contentApi = {
-  getBusinessContent: async (businessId, filters = {}) => {
-    try {
-      const params = new URLSearchParams(filters);
-      const response = await fetch(`${API_BASE}/content/${businessId}?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch content');
-      return response.json();
-    } catch (error) {
-      console.error('Get business content error:', error);
-      throw error;
-    }
-  },
-
-  approveContent: async (contentId) => {
-    try {
-      const response = await fetch(`${API_BASE}/content/${contentId}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (!response.ok) throw new Error('Failed to approve content');
-      return response.json();
-    } catch (error) {
-      console.error('Approve content error:', error);
-      throw error;
-    }
-  },
-
-  rejectContent: async (contentId, feedback) => {
-    try {
-      const response = await fetch(`${API_BASE}/content/${contentId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback })
-      });
-      if (!response.ok) throw new Error('Failed to reject content');
-      return response.json();
-    } catch (error) {
-      console.error('Reject content error:', error);
-      throw error;
-    }
-  },
-
-  bulkApprove: async (contentIds) => {
-    try {
-      const response = await fetch(`${API_BASE}/content/bulk-approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contentIds })
-      });
-      if (!response.ok) throw new Error('Failed to bulk approve');
-      return response.json();
-    } catch (error) {
-      console.error('Bulk approve error:', error);
-      throw error;
-    }
-  }
 };
 
 // StatusBadge component
@@ -262,11 +202,16 @@ const BlogPostsTab = ({
   const fetchBlogPosts = async () => {
     try {
       setLoading(true);
+      console.log('📝 Fetching blog posts for:', businessId);
+      
+      // Use the shared contentApi with proper filters
       const response = await contentApi.getBusinessContent(businessId, { 
-        contentType: 'blog',
+        type: 'blog',
         status: filter === 'all' ? undefined : filter 
       });
-      setBlogPosts(response.data?.content || []);
+      
+      console.log('📝 Blog posts response:', response);
+      setBlogPosts(response || []);
     } catch (error) {
       console.error('Failed to fetch blog posts:', error);
       setBlogPosts([]);

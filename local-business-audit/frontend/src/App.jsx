@@ -1,21 +1,17 @@
-console.log("App Version: 1.4 - Added ClientDashboard");
+console.log("App Version: 2.0 - Unified Dashboard Navigation");
 // frontend/src/App.jsx
-// Updated with ClientDashboard for paid customers
+// Updated with UnifiedDashboard navigation system
 
 import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import "./App.css";
-import AuditDashboard from "./dashboards/AuditDashboard/AuditDashboard"; // FIXED PATH
+import AuditDashboard from "./dashboards/AuditDashboard/AuditDashboard";
 import ComprehensiveAuditForm from "./components/ComprehensiveAuditForm";
 import TabPlayground from "./components/playground/TabPlayground";
-import LandingPage from "./components/LandingPage";  // Make sure this component exists
-import OnboardingFlowDemo from "./dashboards/AuditDashboard/tabs/OnboardingFlowDemo"; // FIXED PATH
-import ClientDashboard from "./dashboards/ClientDashboard/ClientDashboard"; // FIXED PATH - corrected to main ClientDashboard folder
-
-// TODO: Uncomment these as we create the components
-// import PaymentPage from "./components/PaymentPage";
-// import OnboardingFlow from "./components/OnboardingFlow";
-// import Dashboard from "./components/Dashboard";
+import LandingPage from "./components/LandingPage";
+import OnboardingFlowDemo from "./dashboards/AuditDashboard/tabs/OnboardingFlowDemo";
+import ClientDashboard from "./dashboards/ClientDashboard/ClientDashboard";
+import UnifiedDashboard from "./components/Navigation/UnifiedDashboard"; // NEW
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://react-audit-backend.onrender.com';
@@ -165,14 +161,9 @@ function AuditFlow() {
     sessionStorage.removeItem('businessInfo');
   };
 
-  // Navigate to playground
-  const goToPlayground = () => {
-    navigate('/playground');
-  };
-
-  // Navigate to client dashboard (for testing)
-  const goToClientDashboard = () => {
-    navigate('/client');
+  // Navigate to unified dashboard
+  const goToDashboard = () => {
+    navigate('/dashboard');
   };
 
   // Show results dashboard
@@ -191,19 +182,6 @@ function AuditFlow() {
         >
           <div
             style={{
-              background: "#10B981",
-              color: "white",
-              padding: "8px 16px",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "14px",
-            }}
-            onClick={goToPlayground}
-          >
-            🛠️ Tab Playground
-          </div>
-          <div
-            style={{
               background: "#3B82F6",
               color: "white",
               padding: "8px 16px",
@@ -211,9 +189,9 @@ function AuditFlow() {
               cursor: "pointer",
               fontSize: "14px",
             }}
-            onClick={goToClientDashboard}
+            onClick={goToDashboard}
           >
-            👥 Client Dashboard
+            🚀 Unified Dashboard
           </div>
         </div>
         <AuditDashboard auditData={results} onStartOver={handleStartOver} />
@@ -267,19 +245,6 @@ function AuditFlow() {
       >
         <div
           style={{
-            background: "#10B981",
-            color: "white",
-            padding: "8px 16px",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-          onClick={goToPlayground}
-        >
-          🛠️ Tab Playground
-        </div>
-        <div
-          style={{
             background: "#3B82F6",
             color: "white",
             padding: "8px 16px",
@@ -287,9 +252,9 @@ function AuditFlow() {
             cursor: "pointer",
             fontSize: "14px",
           }}
-          onClick={goToClientDashboard}
+          onClick={goToDashboard}
         >
-          👥 Client Dashboard
+          🚀 Unified Dashboard
         </div>
       </div>
       <ComprehensiveAuditForm onSubmit={handleFormSubmit} isLoading={loading} />
@@ -297,7 +262,7 @@ function AuditFlow() {
   );
 }
 
-// Playground wrapper with back button
+// Legacy playground wrapper (kept for backward compatibility)
 function PlaygroundWrapper() {
   const navigate = useNavigate();
 
@@ -316,16 +281,16 @@ function PlaygroundWrapper() {
           cursor: "pointer",
           fontSize: "14px",
         }}
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/dashboard')}
       >
-        ← Back to Main App
+        🚀 Go to Unified Dashboard
       </div>
       <TabPlayground />
     </div>
   );
 }
 
-// Client Dashboard wrapper with navigation
+// Legacy client dashboard wrapper (kept for backward compatibility)
 function ClientDashboardWrapper() {
   const navigate = useNavigate();
 
@@ -347,9 +312,9 @@ function ClientDashboardWrapper() {
           cursor: "pointer",
           fontSize: "14px",
         }}
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/dashboard')}
       >
-        ← Back to Audit
+        🚀 Go to Unified Dashboard
       </div>
       <ClientDashboard 
         businessId="demo-business-123"
@@ -378,15 +343,21 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<AuditFlow />} />
-        <Route path="/playground" element={<PlaygroundWrapper />} />
-        <Route path="/upgrade" element={<LandingPage />} />
-        <Route path="/onboarding-demo" element={<OnboardingFlowDemo />} />
         
-        {/* NEW - Client Dashboard for paid customers */}
+        {/* NEW - Unified Dashboard (replaces individual dashboard routes) */}
+        <Route path="/dashboard" element={<UnifiedDashboard />} />
+        <Route path="/dashboard/*" element={<UnifiedDashboard />} />
+        
+        {/* Legacy Routes (for backward compatibility) */}
+        <Route path="/playground" element={<PlaygroundWrapper />} />
         <Route path="/client" element={<ClientDashboardWrapper />} />
         <Route path="/client/*" element={<ClientDashboardWrapper />} />
         
-        {/* TODO: Uncomment these as we create the components
+        {/* Other Routes */}
+        <Route path="/upgrade" element={<LandingPage />} />
+        <Route path="/onboarding-demo" element={<OnboardingFlowDemo />} />
+        
+        {/* TODO: Add when ready
         <Route path="/payment" element={<PaymentPage />} />
         */}
         
@@ -394,11 +365,6 @@ function App() {
         <Route path="/onboarding/:conversationId" element={
           <ProtectedRoute>
             <OnboardingFlow />
-          </ProtectedRoute>
-        } />
-        <Route path="/dashboard/*" element={
-          <ProtectedRoute>
-            <Dashboard />
           </ProtectedRoute>
         } />
         */}

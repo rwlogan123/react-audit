@@ -1,16 +1,18 @@
 // File: src/dashboards/ClientDashboard/ClientDashboard.jsx
 import React, { useState, useEffect } from 'react';
-import DashboardHeader from '../../components/shared/DashboardHeader.jsx';
-import TabNavigation from '../../components/shared/TabNavigation.jsx';
+import DashboardHeader from '../../components/shared/DashboardHeader';
+import TabNavigation from '../../components/shared/TabNavigation';
 import BlogPostsTab from './tabs/BlogPostsTab';
 import OverviewTab from './tabs/OverviewTab';
-import SocialMediaTab from './tabs/SocialMediaTab.jsx';
-import EmailSequenceTab from './tabs/EmailSequenceTab.jsx';
-// Import other tabs as they get fixed
-// import WebsiteTab from './tabs/WebsiteTab.jsx';
-// import ReviewsTab from './tabs/ReviewsTab.jsx';
-// import CitationsTab from './tabs/CitationsTab.jsx';
-// import AdsTab from './tabs/AdsTab.jsx';
+// Only import existing tabs for now
+import SocialMediaTab from './tabs/SocialMediaTab';
+import EmailSequenceTab from './tabs/EmailSequenceTab';
+import WebsiteTab from './tabs/WebsiteTab';
+import ReviewsTab from './tabs/ReviewsTab';
+import CitationsTab from './tabs/CitationsTab';
+import AdsTab from './tabs/AdsTab';
+import ServiceAreasTab from './tabs/ServiceAreasTab';
+import PublishingTab from './tabs/PublishingTab';
 import { contentApi } from '../../api/contentApi';
 
 const ClientDashboard = () => {
@@ -20,7 +22,8 @@ const ClientDashboard = () => {
     total: 0,
     pending: 0,
     approved: 0,
-    rejected: 0
+    rejected: 0,
+    byType: []
   });
   const [loading, setLoading] = useState(false);
   const [businessId, setBusinessId] = useState(null);
@@ -55,10 +58,28 @@ const ClientDashboard = () => {
 
   const fetchStats = async () => {
     try {
+      console.log('📊 Fetching stats for businessId:', businessId);
       const response = await contentApi.getContentStatus(businessId);
-      setStats(response.data);
+      console.log('📊 Stats response:', response);
+      
+      // Handle the response properly
+      setStats(response || {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        byType: []
+      });
     } catch (error) {
       console.error('Failed to fetch stats:', error);
+      // Set default stats on error
+      setStats({
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        byType: []
+      });
     }
   };
 
@@ -123,39 +144,39 @@ const ClientDashboard = () => {
     }
   };
 
-  // Build metrics for header
+  // Build metrics for header - with safe fallbacks
   const metrics = [
     {
       id: "total",
       title: "Total Content",
-      value: stats.total || 0,
+      value: stats?.total || 0,
       subtitle: "Ready for review",
       status: "info",
     },
     {
       id: "pending",
       title: "Pending Review",
-      value: stats.pending || 0,
+      value: stats?.pending || 0,
       subtitle: "Awaiting your approval",
       status: "warning",
     },
     {
       id: "approved",
       title: "Approved",
-      value: stats.approved || 0,
+      value: stats?.approved || 0,
       subtitle: "Ready to publish",
       status: "success",
     },
     {
       id: "rejected",
       title: "Needs Revision",
-      value: stats.rejected || 0,
+      value: stats?.rejected || 0,
       subtitle: "Feedback provided",
       status: "danger",
     }
   ];
 
-  // Build tabs dynamically based on stats
+  // Build tabs dynamically based on stats - with safe fallbacks
   const tabs = [
     { id: "overview", label: "Overview", emoji: "📊" },
     { id: "blog", label: "Blog Posts", emoji: "📝", count: stats.byType?.find(t => t._id === 'blog')?.count || 0 },
@@ -187,6 +208,14 @@ const ClientDashboard = () => {
       );
     }
 
+    // Common props to pass to all tabs
+    const commonProps = {
+      businessId,
+      filter,
+      onApprove: handleApprove,
+      onReject: handleReject
+    };
+
     switch (activeTab) {
       case 'overview':
         return (
@@ -211,113 +240,28 @@ const ClientDashboard = () => {
         );
 
       case 'social':
-        return (
-          <SocialMediaTab 
-            businessName={businessInfo.name}
-            location={businessInfo.location}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onBulkApprove={(selectedIds) => {
-              // Handle bulk approve
-              selectedIds.forEach(id => handleApprove(id));
-            }}
-          />
-        );
+        return <SocialMediaTab {...commonProps} />;
 
       case 'email':
-        return (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <h2>✉️ Email Sequence</h2>
-            <div style={{
-              background: '#E1E1E1',
-              padding: "40px",
-              borderRadius: "12px",
-              maxWidth: "600px",
-              margin: "20px auto"
-            }}>
-              <p>Email Sequence tab component coming soon!</p>
-              <p style={{ fontSize: '14px', color: '#666' }}>
-                This will show email campaign approval workflow with sequence tracking.
-              </p>
-            </div>
-          </div>
-        );
+        return <EmailSequenceTab {...commonProps} />;
 
       case 'website':
-        return (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <h2>🌐 Website</h2>
-            <div style={{
-              background: '#E1E1E1',
-              padding: "40px",
-              borderRadius: "12px",
-              maxWidth: "600px",
-              margin: "20px auto"
-            }}>
-              <p>Website development tracking coming soon!</p>
-              <p style={{ fontSize: '14px', color: '#666' }}>
-                This will show development progress with phases, pages, and features.
-              </p>
-            </div>
-          </div>
-        );
+        return <WebsiteTab {...commonProps} />;
 
       case 'reviews':
-        return (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <h2>⭐ Reviews</h2>
-            <div style={{
-              background: '#E1E1E1',
-              padding: "40px",
-              borderRadius: "12px",
-              maxWidth: "600px",
-              margin: "20px auto"
-            }}>
-              <p>Review management coming soon!</p>
-              <p style={{ fontSize: '14px', color: '#666' }}>
-                This will show review monitoring, responses, and generation campaigns.
-              </p>
-            </div>
-          </div>
-        );
+        return <ReviewsTab {...commonProps} />;
 
       case 'citations':
-        return (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <h2>📋 Citations</h2>
-            <div style={{
-              background: '#E1E1E1',
-              padding: "40px",
-              borderRadius: "12px",
-              maxWidth: "600px",
-              margin: "20px auto"
-            }}>
-              <p>Citation building & management coming soon!</p>
-              <p style={{ fontSize: '14px', color: '#666' }}>
-                This will show monthly quota tracking and NAP consistency management.
-              </p>
-            </div>
-          </div>
-        );
+        return <CitationsTab {...commonProps} />;
 
       case 'ads':
-        return (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <h2>💰 Advertising</h2>
-            <div style={{
-              background: '#E1E1E1',
-              padding: "40px",
-              borderRadius: "12px",
-              maxWidth: "600px",
-              margin: "20px auto"
-            }}>
-              <p>Advertising dashboard coming soon!</p>
-              <p style={{ fontSize: '14px', color: '#666' }}>
-                This will show performance tracking with budget and ROI analysis.
-              </p>
-            </div>
-          </div>
-        );
+        return <AdsTab {...commonProps} />;
+
+      case 'service-areas':
+        return <ServiceAreasTab {...commonProps} />;
+
+      case 'schedule':
+        return <PublishingTab {...commonProps} />;
       
       default:
         return (

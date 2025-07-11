@@ -45,16 +45,33 @@ async function apiCall(endpoint, options = {}) {
 
 // Export the contentApi object to match your existing code
 export const contentApi = {
-  // Get all content for a business
+  // Get all content for a business - FIXED TO MATCH YOUR TAB COMPONENTS
   getBusinessContent: async (businessId, filters = {}) => {
-    const params = new URLSearchParams(filters);
-    return apiCall(`/content/business/${businessId}?${params}`);
+    const params = new URLSearchParams();
+    
+    // Add filters as query parameters
+    if (filters.type) params.append('type', filters.type);
+    if (filters.status) params.append('status', filters.status);
+    
+    const queryString = params.toString();
+    const endpoint = queryString 
+      ? `/content/business/${businessId}?${queryString}`
+      : `/content/business/${businessId}`;
+    
+    console.log(`📋 Getting business content: ${businessId}`, filters);
+    const response = await apiCall(endpoint);
+    
+    // Return the content array directly (not wrapped in response.data)
+    // This matches what your tab components expect
+    return response.data?.content || response.content || [];
   },
 
   // Get content status/metrics
   getContentStatus: async (businessId) => {
     console.log(`📊 Getting content status for business: ${businessId}`);
-    return apiCall(`/content/status/${businessId}`);
+    const response = await apiCall(`/content/status/${businessId}`);
+    // Return the data directly
+    return response.data || response;
   },
 
   // Approve content
