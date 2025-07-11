@@ -4,7 +4,14 @@ import DashboardHeader from '../../components/shared/DashboardHeader';
 import TabNavigation from '../../components/shared/TabNavigation';
 import BlogPostsTab from './tabs/BlogPostsTab';
 import OverviewTab from './tabs/OverviewTab';
-import { contentApi } from '../../api/contentApi'; // Import your existing API file
+// Only import existing tabs for now
+// import SocialMediaTab from './tabs/SocialMediaTab';
+// import EmailSequenceTab from './tabs/EmailSequenceTab';
+// import WebsiteTab from './tabs/WebsiteTab';
+// import ReviewsTab from './tabs/ReviewsTab';
+// import CitationsTab from './tabs/CitationsTab';
+// import AdsTab from './tabs/AdsTab';
+import { contentApi } from '../../api/contentApi';
 
 const ClientDashboard = () => {
   const [filter, setFilter] = useState('all');
@@ -61,10 +68,7 @@ const ClientDashboard = () => {
       const response = await contentApi.generateTestContent();
       
       if (response.success) {
-        const newBusinessId = response.content?.blogPosts?.[0]?.businessId || 
-                             response.summary?.businessId || 
-                             '60d5ecb74f42f80015a2f4d3';
-        
+        const newBusinessId = response.businessId || 'demo-business';
         setBusinessId(newBusinessId);
         alert('Test content generated successfully! The dashboard will now load the data.');
         
@@ -162,9 +166,27 @@ const ClientDashboard = () => {
     { id: "schedule", label: "Publishing", emoji: "📅" },
     { id: "citations", label: "Citations", emoji: "📋", badge: "Active" },
     { id: "reviews", label: "Reviews", emoji: "⭐", badge: "3 new" },
+    { id: "ads", label: "Advertising", emoji: "💰", badge: "Active" }
   ];
 
   const renderTabContent = () => {
+    // Show placeholder if no business ID
+    if (!businessId && activeTab !== 'overview') {
+      return (
+        <div style={{ padding: "40px 20px", textAlign: "center" }}>
+          <div style={{
+            background: '#E1E1E1',
+            padding: "40px",
+            borderRadius: "12px",
+            maxWidth: "600px",
+            margin: "20px auto"
+          }}>
+            <p>Please generate test content first using the button in the header.</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'overview':
         return (
@@ -179,21 +201,6 @@ const ClientDashboard = () => {
         );
       
       case 'blog':
-        if (!businessId) {
-          return (
-            <div style={{ padding: "40px 20px", textAlign: "center" }}>
-              <div style={{
-                background: '#E1E1E1',
-                padding: "40px",
-                borderRadius: "12px",
-                maxWidth: "600px",
-                margin: "20px auto"
-              }}>
-                <p>Please generate test content first using the button in the header.</p>
-              </div>
-            </div>
-          );
-        }
         return (
           <BlogPostsTab 
             businessId={businessId}
@@ -202,24 +209,134 @@ const ClientDashboard = () => {
             onReject={handleReject}
           />
         );
+
+      case 'social':
+        return (
+          <div style={{ padding: "40px 20px", textAlign: "center" }}>
+            <h2>📱 Social Media</h2>
+            <div style={{
+              background: '#E1E1E1',
+              padding: "40px",
+              borderRadius: "12px",
+              maxWidth: "600px",
+              margin: "20px auto"
+            }}>
+              <p>Social Media tab component coming soon!</p>
+              <p style={{ fontSize: '14px', color: '#666' }}>
+                This will show platform-specific post management for Facebook, Instagram, and LinkedIn.
+              </p>
+            </div>
+          </div>
+        );
+
+      case 'email':
+        return (
+          <div style={{ padding: "40px 20px", textAlign: "center" }}>
+            <h2>✉️ Email Sequence</h2>
+            <div style={{
+              background: '#E1E1E1',
+              padding: "40px",
+              borderRadius: "12px",
+              maxWidth: "600px",
+              margin: "20px auto"
+            }}>
+              <p>Email Sequence tab component coming soon!</p>
+              <p style={{ fontSize: '14px', color: '#666' }}>
+                This will show email campaign approval workflow with sequence tracking.
+              </p>
+            </div>
+          </div>
+        );
+
+      case 'website':
+        return (
+          <div style={{ padding: "40px 20px", textAlign: "center" }}>
+            <h2>🌐 Website</h2>
+            <div style={{
+              background: '#E1E1E1',
+              padding: "40px",
+              borderRadius: "12px",
+              maxWidth: "600px",
+              margin: "20px auto"
+            }}>
+              <p>Website development tracking coming soon!</p>
+              <p style={{ fontSize: '14px', color: '#666' }}>
+                This will show development progress with phases, pages, and features.
+              </p>
+            </div>
+          </div>
+        );
+
+      case 'reviews':
+        return (
+          <div style={{ padding: "40px 20px", textAlign: "center" }}>
+            <h2>⭐ Reviews</h2>
+            <div style={{
+              background: '#E1E1E1',
+              padding: "40px",
+              borderRadius: "12px",
+              maxWidth: "600px",
+              margin: "20px auto"
+            }}>
+              <p>Review management coming soon!</p>
+              <p style={{ fontSize: '14px', color: '#666' }}>
+                This will show review monitoring, responses, and generation campaigns.
+              </p>
+            </div>
+          </div>
+        );
+
+      case 'citations':
+        return (
+          <div style={{ padding: "40px 20px", textAlign: "center" }}>
+            <h2>📋 Citations</h2>
+            <div style={{
+              background: '#E1E1E1',
+              padding: "40px",
+              borderRadius: "12px",
+              maxWidth: "600px",
+              margin: "20px auto"
+            }}>
+              <p>Citation building & management coming soon!</p>
+              <p style={{ fontSize: '14px', color: '#666' }}>
+                This will show monthly quota tracking and NAP consistency management.
+              </p>
+            </div>
+          </div>
+        );
+
+      case 'ads':
+        return (
+          <div style={{ padding: "40px 20px", textAlign: "center" }}>
+            <h2>💰 Advertising</h2>
+            <div style={{
+              background: '#E1E1E1',
+              padding: "40px",
+              borderRadius: "12px",
+              maxWidth: "600px",
+              margin: "20px auto"
+            }}>
+              <p>Advertising dashboard coming soon!</p>
+              <p style={{ fontSize: '14px', color: '#666' }}>
+                This will show performance tracking with budget and ROI analysis.
+              </p>
+            </div>
+          </div>
+        );
       
       default:
         return (
           <div style={{ padding: "40px 20px", textAlign: "center" }}>
             <h2>{tabs.find(tab => tab.id === activeTab)?.emoji} {tabs.find(tab => tab.id === activeTab)?.label}</h2>
-            {!businessId ? (
-              <div style={{
-                background: '#E1E1E1',
-                padding: "40px",
-                borderRadius: "12px",
-                maxWidth: "600px",
-                margin: "20px auto"
-              }}>
-                <p>Please generate test content first using the button in the header.</p>
-              </div>
-            ) : (
-              <p>Content for {activeTab} tab will be implemented here...</p>
-            )}
+            <p>Content for {activeTab} tab coming soon...</p>
+            <div style={{
+              background: '#E1E1E1',
+              padding: "20px",
+              borderRadius: "12px",
+              marginTop: "20px",
+            }}>
+              <p>This tab is being developed. Check back soon!</p>
+            </div>
           </div>
         );
     }

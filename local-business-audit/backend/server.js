@@ -3,6 +3,7 @@
 // UPDATED VERSION - Now with MongoDB storage integration and strict audit limits
 // PLUS: Local Brand Builder marketing automation routes
 // PLUS: Terminal Dashboard for real-time monitoring
+// PLUS: Client Dashboard Content Management APIs
 
 const express = require("express");
 const cors = require("cors");
@@ -37,19 +38,20 @@ const auditLimiter = require("./services/auditLimiter");
 const landingRoutes = require('./routes/landing');
 const paymentRoutes = require('./routes/payment');
 const onboardingRoutes = require('./routes/onboarding');
-// DISABLED CONTENT ROUTES TO AVOID CONFLICTS
-// const contentRoutes = require('./routes/content');
 
 const app = express();
 const PORT = 5000; // Changed from 3001 to 5000 to match your ClientDashboard
 
 // PROPER CORS FIX - Use cors package
 app.use(cors({
-  origin: '*',
+  origin: true,  // Allow all origins in development
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key', 'X-Audit-Token'],
   credentials: true
 }));
+
+// Fix for Codespaces proxy environment
+app.set('trust proxy', true);
 
 // Create HTTP server for Socket.io
 const server = http.createServer(app);
@@ -158,8 +160,6 @@ app.use((req, res, next) => {
 app.use('/api/landing', landingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/onboarding', onboardingRoutes);
-// DISABLED CONTENT ROUTES TO AVOID CONFLICTS
-// app.use('/api/content', contentRoutes);
 
 // Initialize database connection
 async function initializeApp() {
@@ -186,6 +186,7 @@ async function initializeApp() {
         mongoDBAtlas: !!database.getDb()
       });
       terminal.info("🚀 Local Brand Builder Routes active");
+      terminal.info("📊 Client Dashboard Content APIs loaded");
       terminal.success("🎯 Ready to generate comprehensive local business audits!");
     });
   } catch (error) {
@@ -197,157 +198,390 @@ async function initializeApp() {
   }
 }
 
+// ===== HEALTH CHECK ENDPOINT =====
+// Root route for basic API info
+app.get('/', (req, res) => {
+  res.json({
+    message: 'BRANDAIDE API Server',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      test: '/api/test',
+      audit: '/api/audit',
+      content: '/api/content/*',
+      business: '/api/business/*'
+    },
+    documentation: 'https://docs.brandaide.com'
+  });
+});
+
 app.get("/api/health", (req, res) => {
   const healthStatus = {
     status: "healthy", 
     timestamp: new Date().toISOString(),
     services: "all systems operational",
     database: database.getDb() ? "connected" : "disconnected",
-    cors: "enabled",
-    origin: req.headers.origin,
-    newRoutes: {
-      landing: "available",
-      payment: "available", 
-      onboarding: "available",
-      content: "available"
-    }
+    environment: process.env.NODE_ENV || 'development',
+    version: "1.0.0"
   };
   
-  terminal.info('🏥 Health check requested', healthStatus);
+  terminal.info("💚 Health check requested", { 
+    status: healthStatus.status,
+    database: healthStatus.database 
+  });
+  
   res.json(healthStatus);
 });
 
-app.get("/health", (req, res) => {
-  res.json({ status: "OK" });
-});
-
-// ===== CONTENT MANAGEMENT ENDPOINTS =====
-// These endpoints are now defined in server.js to avoid routing conflicts
-
-// Test content generation endpoint - WORKING VERSION
-app.post("/api/content/test-generation", async (req, res) => {
-  const testId = `test_gen_${Date.now()}`;
+// ===== AUDIT ENDPOINTS (YOUR EXISTING AUDIT SYSTEM) =====
+app.post("/api/audit", async (req, res) => {
+  const auditId = `audit_${Date.now()}`;
   
   try {
-    terminal.info('🧪 Test content generation requested', { testId });
+    const auditData = req.body;
     
-    // Generate mock content for testing
-    const businessId = `test_business_${Date.now()}`;
-    const mockContent = {
-      blogPosts: Array.from({ length: 10 }, (_, i) => ({
-        _id: `blog_${businessId}_${i}`,
-        businessId: businessId,
-        title: `Blog Post ${i + 1}: Local SEO Tips for Eagle Mountain Businesses`,
-        content: `This is a comprehensive guide about local SEO for businesses in Eagle Mountain, UT. Content includes optimization strategies, keyword research, and local citation building.`,
-        status: i < 3 ? 'pending' : i < 8 ? 'approved' : 'rejected',
-        contentType: 'blog',
-        seoData: {
-          keyword: `Eagle Mountain ${['SEO', 'marketing', 'business', 'local'][i % 4]}`
-        },
-        feedback: i >= 8 ? 'Please make the content more conversational and add local examples' : null,
-        createdAt: new Date()
-      })),
-      socialPosts: Array.from({ length: 30 }, (_, i) => ({
-        _id: `social_${businessId}_${i}`,
-        businessId: businessId,
-        title: `Social Media Post ${i + 1}`,
-        content: `Engaging social media content for local audience...`,
-        status: 'approved',
-        contentType: 'social',
-        createdAt: new Date()
-      })),
-      emailSequence: Array.from({ length: 5 }, (_, i) => ({
-        _id: `email_${businessId}_${i}`,
-        businessId: businessId,
-        title: `Email ${i + 1}: Nurture Sequence`,
-        content: `Email content for lead nurturing...`,
-        status: 'approved',
-        contentType: 'email',
-        createdAt: new Date()
-      }))
-    };
+    terminal.startAudit(auditId);
+    terminal.info('🎯 Audit started', {
+      auditId,
+      website: auditData.website,
+      businessName: auditData.businessName,
+      location: auditData.location
+    });
 
-    terminal.success('✅ Test content generated successfully', {
-      testId,
-      blogCount: mockContent.blogPosts.length,
-      socialCount: mockContent.socialPosts.length,
-      emailCount: mockContent.emailSequence.length
+    // Check audit limits
+    const limitCheck = await auditLimiter.checkLimits(req.ip, auditData.website);
+    if (!limitCheck.allowed) {
+      terminal.warning('⚠️ Audit limit exceeded', {
+        auditId,
+        reason: limitCheck.reason,
+        ip: req.ip
+      });
+      return res.status(429).json({
+        success: false,
+        error: limitCheck.reason,
+        nextAllowedTime: limitCheck.nextAllowedTime
+      });
+    }
+
+    // Store audit in database
+    await auditStorage.saveAuditStart(auditId, auditData, req.ip);
+
+    // Process the audit
+    const auditResults = await auditProcessor.processFullAudit(auditData, auditId, terminal);
+
+    // Store results in database
+    await auditStorage.saveAuditComplete(auditId, auditResults);
+
+    terminal.success('✅ Audit completed successfully', {
+      auditId,
+      duration: auditResults.processingTime,
+      totalIssues: auditResults.summary?.totalIssues || 0
     });
 
     res.json({
       success: true,
-      content: mockContent,
+      auditId,
+      data: auditResults
+    });
+
+  } catch (error) {
+    terminal.error("❌ Audit processing error", {
+      auditId,
+      error: error.message,
+      stack: error.stack
+    });
+
+    // Store error in database
+    await auditStorage.saveAuditError(auditId, error.message);
+
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      auditId
+    });
+  }
+});
+
+// ===== CLIENT DASHBOARD CONTENT ENDPOINTS =====
+
+// Generate test content for demo/development
+app.post("/api/content/test-generation", async (req, res) => {
+  try {
+    const businessId = req.body.businessId || 'demo-business';
+    
+    terminal.info("📝 Generating test content", { businessId });
+    
+    // Mock content generation (replace with real AI generation later)
+    const content = {
+      blogPosts: [
+        {
+          id: `blog-${Date.now()}-1`,
+          title: "Emergency Plumbing Services in Eagle Mountain",
+          content: "When plumbing emergencies strike, Eagle Mountain residents need fast, reliable service. Our team provides 24/7 emergency plumbing services to handle burst pipes, clogged drains, and water heater failures. With over 10 years serving the Eagle Mountain community, we understand the unique plumbing challenges in our area.",
+          seoKeywords: ["emergency plumbing Eagle Mountain", "24/7 plumber", "burst pipe repair"],
+          status: 'pending',
+          createdAt: new Date()
+        },
+        {
+          id: `blog-${Date.now()}-2`, 
+          title: "Water Heater Replacement Guide for Eagle Mountain Homes",
+          content: "Is your water heater showing signs of failure? Our comprehensive guide helps Eagle Mountain homeowners recognize when it's time for a replacement. From energy efficiency improvements to cost considerations, we cover everything you need to know about upgrading your water heater.",
+          seoKeywords: ["water heater replacement Eagle Mountain", "plumbing repair", "energy efficient water heater"],
+          status: 'pending',
+          createdAt: new Date()
+        }
+      ],
+      socialPosts: [
+        {
+          id: `social-${Date.now()}-1`,
+          platform: 'Facebook',
+          content: "🚨 Emergency plumbing situation? Don't panic! Our Eagle Mountain team is available 24/7 for all your plumbing emergencies. Fast response times, fair pricing, and quality work guaranteed. Call us now! #EmergencyPlumbing #EagleMountain #24HourService",
+          hashtags: ["#EmergencyPlumbing", "#EagleMountain", "#24HourService"],
+          status: 'pending',
+          createdAt: new Date()
+        },
+        {
+          id: `social-${Date.now()}-2`,
+          platform: 'Instagram', 
+          content: "✨ Before & after: basement flood cleanup transformed! 💪 When water damage strikes, professional restoration makes all the difference. Trust our Eagle Mountain team for emergency water cleanup and plumbing repairs. #BeforeAndAfter #WaterDamage #ProfessionalService",
+          hashtags: ["#BeforeAndAfter", "#WaterDamage", "#ProfessionalService"],
+          status: 'pending',
+          createdAt: new Date()
+        }
+      ],
+      emailSequence: [
+        {
+          id: `email-${Date.now()}-1`,
+          subject: "Welcome to Eagle Mountain Plumbing - Your Trusted Local Experts!",
+          content: "Thank you for choosing Eagle Mountain Plumbing for your home service needs! As your local plumbing experts, we're committed to providing fast, reliable service to keep your home running smoothly. Over the next few days, you'll receive helpful tips and important information about maintaining your plumbing system.",
+          sequencePosition: 1,
+          status: 'pending',
+          createdAt: new Date()
+        }
+      ]
+    };
+
+    terminal.success("📝 Generated test content", { 
+      businessId, 
+      blogPosts: content.blogPosts.length,
+      socialPosts: content.socialPosts.length,
+      emails: content.emailSequence.length 
+    });
+
+    res.json({
+      success: true,
+      message: "Test content generated successfully",
+      businessId,
+      content,
       summary: {
-        businessId: businessId,
-        totalItems: mockContent.blogPosts.length + mockContent.socialPosts.length + mockContent.emailSequence.length
+        total: content.blogPosts.length + content.socialPosts.length + content.emailSequence.length,
+        blogPosts: content.blogPosts.length,
+        socialPosts: content.socialPosts.length,
+        emailSequence: content.emailSequence.length
       }
     });
 
   } catch (error) {
-    terminal.error('❌ Test content generation failed', {
-      testId,
-      error: error.message
-    });
-    res.status(500).json({
+    terminal.error("❌ Error generating test content", { error: error.message });
+    res.status(500).json({ 
       success: false,
-      error: 'Failed to generate test content',
-      message: error.message
+      error: "Failed to generate test content" 
     });
   }
 });
 
-// Approve content item
+// Get all content for a business
+app.get("/api/content/business/:businessId", async (req, res) => {
+  try {
+    const { businessId } = req.params;
+    const { type, status } = req.query;
+
+    terminal.info("📋 Fetching business content", { businessId, filters: { type, status } });
+
+    // Mock data (replace with database query later)
+    let allContent = [
+      {
+        _id: '1',
+        businessId,
+        type: 'blog',
+        status: 'pending',
+        title: 'Emergency Plumbing Services in Eagle Mountain',
+        content: 'When plumbing emergencies happen, you need fast, reliable service...',
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        seoKeywords: ['emergency plumbing', 'Eagle Mountain plumber'],
+        wordCount: 1200
+      },
+      {
+        _id: '2',
+        businessId,
+        type: 'blog', 
+        status: 'approved',
+        title: 'Water Heater Maintenance Tips for Homeowners',
+        content: 'Regular maintenance extends the life of your water heater...',
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        approvedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+        wordCount: 950
+      },
+      {
+        _id: '3',
+        businessId,
+        type: 'social',
+        status: 'pending',
+        platform: 'Facebook',
+        content: '🔧 Need a reliable plumber in Eagle Mountain? We\'re here 24/7! Fast service, fair pricing, guaranteed satisfaction.',
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        hashtags: ['#EagleMountainPlumber', '#EmergencyService']
+      },
+      {
+        _id: '4',
+        businessId,
+        type: 'email',
+        status: 'approved',
+        subject: 'Welcome to Eagle Mountain Plumbing',
+        content: 'Thank you for choosing our services. Here\'s what you can expect...',
+        sequencePosition: 1,
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+      }
+    ];
+
+    // Filter by type if specified
+    if (type) {
+      allContent = allContent.filter(item => item.type === type);
+    }
+
+    // Filter by status if specified
+    if (status) {
+      allContent = allContent.filter(item => item.status === status);
+    }
+
+    terminal.success("✅ Business content retrieved", { 
+      businessId, 
+      total: allContent.length,
+      filters: { type, status }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        content: allContent,
+        total: allContent.length,
+        businessId
+      }
+    });
+
+  } catch (error) {
+    terminal.error("❌ Error fetching business content", { error: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to fetch content" 
+    });
+  }
+});
+
+// Get content statistics/status for dashboard metrics
+app.get("/api/content/status/:businessId", async (req, res) => {
+  try {
+    const { businessId } = req.params;
+
+    terminal.info("📊 Fetching content status", { businessId });
+
+    // Mock statistics (replace with database aggregation later)
+    const stats = {
+      total: 48,
+      pending: 12,
+      approved: 28,
+      rejected: 8,
+      byType: [
+        { _id: 'blog', count: 10 },
+        { _id: 'social', count: 30 },
+        { _id: 'email', count: 5 },
+        { _id: 'website', count: 3 }
+      ]
+    };
+
+    terminal.success("✅ Content status retrieved", { businessId, stats });
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error) {
+    terminal.error("❌ Error fetching content status", { error: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to fetch content status" 
+    });
+  }
+});
+
+// Approve content
 app.post("/api/content/:contentId/approve", async (req, res) => {
   try {
     const { contentId } = req.params;
-    terminal.info('✅ Approving content', { contentId });
-    
+    const { approvedBy = 'client' } = req.body;
+
+    terminal.success("✅ Content approved", { contentId, approvedBy });
+
+    // Mock approval (replace with database update later)
+    const updatedContent = {
+      contentId,
+      status: 'approved',
+      approvedBy,
+      approvedAt: new Date()
+    };
+
     res.json({
       success: true,
-      message: 'Content approved successfully',
-      contentId: contentId,
-      status: 'approved',
-      updatedAt: new Date().toISOString()
+      message: "Content approved successfully",
+      data: updatedContent
     });
+
   } catch (error) {
-    terminal.error('❌ Error approving content', {
-      contentId: req.params.contentId,
-      error: error.message
-    });
-    res.status(500).json({
+    terminal.error("❌ Error approving content", { error: error.message });
+    res.status(500).json({ 
       success: false,
-      error: 'Failed to approve content'
+      error: "Failed to approve content" 
     });
   }
 });
 
-// Reject content item with feedback
+// Reject content with feedback
 app.post("/api/content/:contentId/reject", async (req, res) => {
   try {
     const { contentId } = req.params;
-    const { feedback } = req.body;
-    
-    terminal.info('❌ Rejecting content', { 
-      contentId, 
-      feedbackLength: feedback?.length || 0 
-    });
-    
+    const { feedback, rejectedBy = 'client' } = req.body;
+
+    if (!feedback) {
+      return res.status(400).json({
+        success: false,
+        error: "Feedback is required for rejection"
+      });
+    }
+
+    terminal.warning("❌ Content rejected", { contentId, rejectedBy, feedback });
+
+    // Mock rejection (replace with database update later)
+    const updatedContent = {
+      contentId,
+      status: 'rejected',
+      rejectedBy,
+      rejectedAt: new Date(),
+      feedback
+    };
+
     res.json({
       success: true,
-      message: 'Content rejected successfully',
-      contentId: contentId,
-      status: 'rejected',
-      feedback: feedback,
-      updatedAt: new Date().toISOString()
+      message: "Content rejected with feedback",
+      data: updatedContent
     });
+
   } catch (error) {
-    terminal.error('❌ Error rejecting content', {
-      contentId: req.params.contentId,
-      error: error.message
-    });
-    res.status(500).json({
+    terminal.error("❌ Error rejecting content", { error: error.message });
+    res.status(500).json({ 
       success: false,
-      error: 'Failed to reject content'
+      error: "Failed to reject content" 
     });
   }
 });
@@ -355,512 +589,126 @@ app.post("/api/content/:contentId/reject", async (req, res) => {
 // Bulk approve multiple content items
 app.post("/api/content/bulk-approve", async (req, res) => {
   try {
-    const { contentIds } = req.body;
-    
-    if (!Array.isArray(contentIds)) {
+    const { contentIds, approvedBy = 'client' } = req.body;
+
+    if (!contentIds || !Array.isArray(contentIds) || contentIds.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'contentIds must be an array'
+        error: "contentIds array is required"
       });
     }
-    
-    terminal.info('✅ Bulk approving content', { 
-      count: contentIds.length 
+
+    terminal.success("✅ Bulk content approved", { 
+      count: contentIds.length, 
+      approvedBy,
+      contentIds 
     });
-    
+
+    // Mock bulk approval (replace with database bulk update later)
+    const approvedContent = contentIds.map(contentId => ({
+      contentId,
+      status: 'approved',
+      approvedBy,
+      approvedAt: new Date()
+    }));
+
     res.json({
       success: true,
-      message: `Successfully approved ${contentIds.length} content items`,
-      approvedIds: contentIds,
-      updatedAt: new Date().toISOString()
+      message: `Approved ${contentIds.length} content items`,
+      data: {
+        approvedCount: contentIds.length,
+        approvedContent
+      }
     });
+
   } catch (error) {
-    terminal.error('❌ Error bulk approving content', {
-      error: error.message
-    });
-    res.status(500).json({
+    terminal.error("❌ Error bulk approving content", { error: error.message });
+    res.status(500).json({ 
       success: false,
-      error: 'Failed to bulk approve content'
+      error: "Failed to bulk approve content" 
     });
   }
 });
 
-// Get content status/metrics for a business
-app.get("/api/content/status/:businessId", async (req, res) => {
+// Get business information for dashboard header
+app.get("/api/business/:businessId", async (req, res) => {
   try {
     const { businessId } = req.params;
-    
-    terminal.info('📊 Getting content status', { businessId });
-    
-    const mockStats = {
-      totalContent: 45,
-      pendingReview: 3,
-      approved: 38,
-      rejected: 4,
-      generating: 2,
-      breakdown: {
-        blogPosts: {
-          total: 10,
-          pending: 1,
-          approved: 8,
-          rejected: 1
-        },
-        socialPosts: {
-          total: 30,
-          pending: 2,
-          approved: 25,
-          rejected: 3
-        },
-        emailSequences: {
-          total: 5,
-          pending: 0,
-          approved: 5,
-          rejected: 0
+
+    terminal.info("🏢 Fetching business info", { businessId });
+
+    // Mock business data (replace with database query later)
+    const businesses = {
+      'eagle-mountain-plumbing': {
+        businessName: 'Eagle Mountain Plumbing',
+        location: 'Eagle Mountain, UT',
+        industry: 'Plumbing Services',
+        plan: 'Professional',
+        monthlyPrice: '$599',
+        contactEmail: 'info@eaglemountainplumbing.com',
+        website: 'https://eaglemountainplumbing.com',
+        projectStatus: {
+          websiteComplete: false,
+          contentApproved: true,
+          adsActive: true,
+          citationsOngoing: true,
+          reviewsActive: true
+        }
+      },
+      'demo-business': {
+        businessName: 'Demo Business',
+        location: 'Salt Lake City, UT', 
+        industry: 'Home Services',
+        plan: 'Professional',
+        monthlyPrice: '$599',
+        contactEmail: 'demo@brandaide.com',
+        website: 'https://demo.brandaide.com',
+        projectStatus: {
+          websiteComplete: false,
+          contentApproved: false,
+          adsActive: false,
+          citationsOngoing: true,
+          reviewsActive: true
         }
       }
     };
-    
+
+    const business = businesses[businessId] || businesses['demo-business'];
+
+    terminal.success("✅ Business info retrieved", { businessId, businessName: business.businessName });
+
     res.json({
       success: true,
-      businessId: businessId,
-      stats: mockStats,
-      lastUpdated: new Date().toISOString()
+      business
     });
+
   } catch (error) {
-    terminal.error('❌ Error getting content status', {
-      businessId: req.params.businessId,
-      error: error.message
-    });
-    res.status(500).json({
+    terminal.error("❌ Error fetching business info", { error: error.message });
+    res.status(500).json({ 
       success: false,
-      error: 'Failed to get content status'
+      error: "Failed to fetch business information" 
     });
   }
 });
 
-// Get all content for a business (with pagination)
-app.get("/api/content/business/:businessId", async (req, res) => {
-  try {
-    const { businessId } = req.params;
-    const { page = 1, limit = 20, status, type } = req.query;
-    
-    terminal.info('📋 Getting business content', { 
-      businessId, 
-      page, 
-      limit, 
-      status, 
-      type 
-    });
-    
-    const mockContent = Array.from({ length: parseInt(limit) }, (_, i) => ({
-      _id: `content_${businessId}_${i}`,
-      businessId: businessId,
-      title: `Sample Content ${i + 1}`,
-      content: `This is sample content for testing purposes...`,
-      status: ['pending', 'approved', 'rejected'][i % 3],
-      contentType: ['blog', 'social', 'email'][i % 3],
-      createdAt: new Date(Date.now() - i * 86400000).toISOString(),
-      updatedAt: new Date().toISOString()
-    }));
-    
-    res.json({
-      success: true,
-      content: mockContent,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: 100, // Mock total
-        pages: Math.ceil(100 / parseInt(limit))
-      },
-      filters: {
-        status,
-        type
-      }
-    });
-  } catch (error) {
-    terminal.error('❌ Error getting business content', {
-      businessId: req.params.businessId,
-      error: error.message
-    });
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get business content'
-    });
-  }
-});
-
-// MAIN AUDIT ENDPOINT - Now with strict one-time audits and sales focus
-app.post("/api/audit", async (req, res) => {
-  const auditId = `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+// Simple test endpoint
+app.get("/api/test", (req, res) => {
+  terminal.info("🧪 API test endpoint called");
   
-  try {
-    terminal.startGeneration(auditId);
-    terminal.info("📝 Comprehensive audit request received", {
-      auditId,
-      businessName: req.body.businessName,
-      location: req.body.location,
-      requestId: req.requestId
-    });
-
-    // Get client IP address
-    const ipAddress = req.headers["x-forwarded-for"] || 
-                     req.connection.remoteAddress || 
-                     req.socket.remoteAddress ||
-                     "unknown";
-
-    // Extract admin key or token if provided
-    const adminKey = req.headers["x-admin-key"];
-    const auditToken = req.headers["x-audit-token"];
-
-    // Check if audit is allowed
-    let canAudit;
-    
-    if (auditToken) {
-      // Verify one-time token
-      const tokenResult = auditLimiter.verifyAuditToken(auditToken);
-      if (tokenResult.valid) {
-        canAudit = { allowed: true, message: "Valid audit token" };
-      } else {
-        canAudit = { allowed: false, reason: "invalid_token", message: tokenResult.reason };
-      }
-    } else {
-      // Regular audit limit check
-      canAudit = await terminal.measurePerformance('auditLimitCheck', async () => {
-        return await auditLimiter.canRunAudit(
-          req.body.businessName,
-          req.body.location || `${req.body.city}, ${req.body.state}`,
-          ipAddress,
-          adminKey
-        );
-      });
-    }
-
-    // Log the attempt (tracks leads!)
-    await auditLimiter.logAuditAttempt(
-      req.body.businessName,
-      req.body.location,
-      ipAddress,
-      canAudit.allowed,
-      canAudit.reason
-    );
-
-    // If audit not allowed, return sales-focused response
-    if (!canAudit.allowed) {
-      terminal.warning(`❌ Audit blocked`, {
-        auditId,
-        businessName: req.body.businessName,
-        reason: canAudit.reason,
-        ip: ipAddress
-      });
-      
-      terminal.endGeneration(auditId, false);
-      
-      // Different responses for different scenarios
-      if (canAudit.reason === "duplicate") {
-        return res.status(403).json({
-          success: false,
-          error: "Free audit already completed",
-          reason: canAudit.reason,
-          existingAuditId: canAudit.auditId,
-          lastAuditDate: canAudit.lastAuditDate,
-          visibilityScore: canAudit.visibilityScore,
-          message: "Great news! We've already analyzed your business.",
-          callToAction: "Ready to turn your audit results into real growth?",
-          contactInfo: {
-            headline: "Get Your Personalized SEO Strategy",
-            email: "your-email@domain.com", // UPDATE THIS
-            phone: "(555) 123-4567", // UPDATE THIS
-            calendlyLink: "https://calendly.com/your-link", // UPDATE THIS
-            website: "https://yourwebsite.com/consultation" // UPDATE THIS
-          },
-          benefits: [
-            "📊 Detailed breakdown of your audit results",
-            "🎯 Custom SEO strategy tailored to your business",
-            "💰 Clear ROI projections and realistic timeline",
-            "🚀 Priority action items for quick wins",
-            "🔍 Competitor analysis and market positioning",
-            "📈 Monthly growth tracking and reporting"
-          ],
-          nextSteps: "Schedule your free 30-minute consultation to discuss your results and growth strategy."
-        });
-      } else if (canAudit.reason === "rate_limit") {
-        return res.status(429).json({
-          success: false,
-          error: "Daily audit limit reached",
-          reason: canAudit.reason,
-          resetTime: canAudit.resetTime,
-          message: "You've used all available free audits for today.",
-          callToAction: "Looking to audit multiple businesses?",
-          contactInfo: {
-            headline: "Let's Discuss an Agency Partnership",
-            email: "your-email@domain.com", // UPDATE THIS
-            phone: "(555) 123-4567", // UPDATE THIS
-            calendlyLink: "https://calendly.com/your-link" // UPDATE THIS
-          },
-          agencyBenefits: [
-            "🔓 Unlimited business audits",
-            "🏷️ White-label reporting options",
-            "📊 Bulk audit capabilities",
-            "💼 Agency dashboard access",
-            "🤝 Dedicated account management",
-            "💰 Volume pricing available"
-          ]
-        });
-      }
-      
-      // Generic error
-      return res.status(403).json({
-        success: false,
-        error: canAudit.message || "Audit not allowed",
-        reason: canAudit.reason
-      });
-    }
-
-    const startTime = Date.now();
-
-    const businessData = {
-      ...req.body,
-      city: req.body.city || "",
-      state: req.body.state || "",
-      location: req.body.city && req.body.state 
-        ? `${req.body.city}, ${req.body.state}` 
-        : req.body.location || "",
-      // Store normalized business ID for future lookups
-      businessId: auditLimiter.normalizeBusinessId(
-        req.body.businessName,
-        req.body.location || `${req.body.city}, ${req.body.state}`
-      )
-    };
-
-    terminal.info("📍 Business location data", {
-      auditId,
-      city: businessData.city,
-      state: businessData.state,
-      location: businessData.location
-    });
-
-    const apiCredentials = {
-      username: process.env.DATAFORSEO_USER,
-      password: process.env.DATAFORSEO_PASS,
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      googleApiKey: process.env.GOOGLE_PAGESPEED_API_KEY,
-      googleSheetsApiKey: process.env.GOOGLE_SHEETS_API_KEY
-    };
-
-    terminal.info("🔑 API Keys Status", {
-      auditId,
-      dataForSEO: apiCredentials.username && apiCredentials.password ? "✅ SET" : "❌ MISSING",
-      openAI: apiCredentials.openaiApiKey ? "✅ SET" : "❌ MISSING",
-      googlePageSpeed: apiCredentials.googleApiKey ? "✅ SET" : "❌ MISSING",
-      googleSheets: apiCredentials.googleSheetsApiKey ? "✅ SET" : "❌ MISSING"
-    });
-
-    // STEP 1: Website Content Analysis
-    terminal.info("🌐 Step 1/8: Starting website analysis...", { auditId });
-    const websiteResults = await terminal.measurePerformance('websiteAnalysis', async () => {
-      return await analyzeWebsite(businessData);
-    });
-    terminal.success("✅ Website analysis complete", { auditId, step: "1/8" });
-
-    // STEP 2: Competitor Analysis
-    terminal.info("🏆 Step 2/8: Starting competitor analysis...", { auditId });
-    const competitorResults = await terminal.measurePerformance('competitorAnalysis', async () => {
-      return await analyzeCompetitors(businessData, apiCredentials);
-    });
-    terminal.success("✅ Competitor analysis complete", { auditId, step: "2/8" });
-
-    // STEP 3: Keyword Analysis
-    terminal.info("🔍 Step 3/8: Starting keyword analysis...", { auditId });
-    const keywordResults = await terminal.measurePerformance('keywordAnalysis', async () => {
-      return await analyzeKeywords(websiteResults, competitorResults, apiCredentials);
-    });
-    terminal.success("✅ Keyword analysis complete", { auditId, step: "3/8" });
-
-    // STEP 4: Citation Analysis
-    terminal.info("📊 Step 4/8: Starting citation analysis...", { auditId });
-    const citationResults = await terminal.measurePerformance('citationAnalysis', async () => {
-      return await analyzeCitations(businessData, websiteResults, competitorResults, apiCredentials);
-    });
-    terminal.success("✅ Citation analysis complete", { auditId, step: "4/8" });
-
-    // STEP 5: PageSpeed Analysis
-    terminal.info("⚡ Step 5/8: Starting PageSpeed analysis...", { auditId });
-    const pagespeedResults = await terminal.measurePerformance('pageSpeedAnalysis', async () => {
-      return await analyzePageSpeed(businessData, apiCredentials);
-    });
-    terminal.success("✅ PageSpeed analysis complete", { auditId, step: "5/8" });
-
-    // STEP 6: Schema Markup Analysis
-    terminal.info("🏗️ Step 6/8: Starting schema analysis...", { auditId });
-    const schemaResults = await terminal.measurePerformance('schemaAnalysis', async () => {
-      return await analyzeSchema(businessData);
-    });
-    terminal.success("✅ Schema analysis complete", { auditId, step: "6/8" });
-
-    // STEP 7: Review & Reputation Analysis
-    terminal.info("🌟 Step 7/8: Starting review & reputation analysis...", { auditId });
-    const reviewResults = await terminal.measurePerformance('reviewAnalysis', async () => {
-      return await analyzeReviews(businessData, competitorResults, apiCredentials);
-    });
-    terminal.success("✅ Review analysis complete", { auditId, step: "7/8" });
-
-    // STEP 8: Final Audit Processing & Report Generation
-    terminal.info("📋 Step 8/8: Starting comprehensive audit processing...", { auditId });
-    
-    const businessDataWithResults = {
-      ...businessData,
-      allAnalysisResults: {
-        websiteResults,
-        competitorResults,
-        keywordResults,
-        citationResults,
-        pagespeedResults,
-        schemaResults,
-        reviewResults,
-      }
-    };
-
-    const finalAuditResults = await terminal.measurePerformance('auditProcessing', async () => {
-      return await auditProcessor.processAudit(businessDataWithResults);
-    });
-    terminal.success("✅ Comprehensive audit processing complete", { auditId, step: "8/8" });
-
-    const executionTime = Date.now() - startTime;
-
-    // Enhanced audit results combining all services with final processing
-    const auditResults = {
-      businessName: businessData.businessName,
-      location: businessData.location,
-      website: businessData.website,
-      ...finalAuditResults,
-      serviceResults: {
-        websiteAnalysis: websiteResults,
-        competitorAnalysis: competitorResults,
-        keywordAnalysis: keywordResults,
-        citationAnalysis: citationResults,
-        pagespeedAnalysis: pagespeedResults,
-        schemaAnalysis: schemaResults,
-        reviewAnalysis: reviewResults,
-      },
-      auditSummary:
-        finalAuditResults.auditSummary ||
-        `${businessData.businessName} comprehensive analysis completed successfully!`,
-      generatedAt: new Date().toISOString(),
-      executionTimeMs: executionTime,
-      servicesCompleted: {
-        websiteAnalysis: websiteResults.success !== false,
-        competitorAnalysis: competitorResults.success !== false,
-        keywordAnalysis: keywordResults.success !== false,
-        citationAnalysis: citationResults.success !== false,
-        pagespeedAnalysis: pagespeedResults.success !== false,
-        schemaAnalysis: schemaResults.success !== false,
-        reviewAnalysis: reviewResults.success !== false,
-        finalProcessing: finalAuditResults.success !== false,
-      },
-      allImprovementOpportunities: [
-        ...(websiteResults.improvementOpportunities || []),
-        ...(competitorResults.businessData?.improvementOpportunities || []),
-        ...(keywordResults.parsedSections?.missingServiceKeywords || []).map(
-          (kw) => `Target keyword: "${kw}"`
-        ),
-        ...(citationResults.recommendations || []),
-        ...(pagespeedResults.recommendations || []),
-        ...(schemaResults.recommendations || []),
-        ...(reviewResults.recommendations || []),
-      ],
-      performanceMetrics: {
-        overallVisibilityScore: finalAuditResults.visibilityScore || 0,
-        websitePerformanceScore:
-          pagespeedResults.overallSummary?.averageScore || 0,
-        localContentScore: websiteResults.localContentScore || 0,
-        competitivePosition:
-          competitorResults.businessData?.completenessLevel || "Unknown",
-        reviewPerformance: {
-          businessReviewCount: reviewResults.businessReviewCount || 0,
-          businessRating: reviewResults.businessRating || 0,
-          competitorComparison: {
-            avgCompetitorReviews: reviewResults.avgCompetitorReviewCount || 0,
-            avgCompetitorRating: reviewResults.avgCompetitorRating || 0,
-          },
-        },
-        citationConsistency:
-          citationResults.consistencyScores?.napConsistency || 0,
-        schemaImplementation: schemaResults.score || 0,
-      },
-    };
-
-    // SAVE TO MONGODB
-    terminal.info("💾 Saving audit to MongoDB...", { auditId });
-    
-    // Extract business data for MongoDB storage
-    const businessDataForStorage = {
-      name: businessData.businessName,
-      address: businessData.address || businessData.location,
-      phone: businessData.phone,
-      website: businessData.website,
-      place_id: businessData.businessId, // Use normalized ID
-      location: businessData.location,
-      ipAddress: ipAddress, // Store IP for rate limiting
-      email: businessData.email || req.body.email // Store email for recovery
-    };
-
-    // Save audit results to MongoDB
-    const saveResult = await terminal.measurePerformance('saveToMongoDB', async () => {
-      return await auditStorage.saveAudit(businessDataForStorage, auditResults);
-    });
-    terminal.success("✅ Audit saved to MongoDB", { 
-      auditId, 
-      mongoId: saveResult.auditId 
-    });
-
-    terminal.endGeneration(auditId, true);
-    
-    terminal.success(`🎉 Complete audit finished`, {
-      auditId,
-      executionTime: `${executionTime}ms`,
-      visibilityScore: `${finalAuditResults.visibilityScore}/100`,
-      performanceLevel: finalAuditResults.performanceLevel,
-      issuesFound: finalAuditResults.totalImprovementsCount
-    });
-
-    // Return response in the format the frontend expects
-    res.json({
-      success: true,
-      data: auditResults,
-      auditId: saveResult.auditId,
-      contactId: `ghl_${Date.now()}`, // Generate contact ID for frontend
-      paymentLink: 'https://pay.example.com/checkout', // TODO: Replace with real payment link
-      results: {
-        visibilityScore: auditResults.performanceMetrics.overallVisibilityScore,
-        localSeoScore: auditResults.performanceMetrics.localContentScore || 0,
-        websiteScore: auditResults.performanceMetrics.websitePerformanceScore || 0,
-        socialScore: Math.round((auditResults.performanceMetrics.reviewPerformance.businessRating || 0) * 20), // Convert 5-star to percentage
-        competitorScore: competitorResults.businessData?.competitiveScore || 70,
-        overallScore: auditResults.performanceMetrics.overallVisibilityScore
-      },
-      message: `Audit completed and saved with ID: ${saveResult.auditId}`
-    });
-  } catch (error) {
-    terminal.endGeneration(auditId, false);
-    terminal.error("❌ Complete audit processing failed", {
-      auditId,
-      error: error.message,
-      stack: error.stack,
-      businessName: req.body.businessName
-    });
-    
-    res.status(500).json({
-      success: false,
-      error: "Complete audit processing failed",
-      message: error.message,
-      contactInfo: {
-        message: "Experiencing technical difficulties? We're here to help.",
-        email: "your-email@domain.com", // UPDATE THIS
-        phone: "(555) 123-4567" // UPDATE THIS
-      },
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
-    });
-  }
+  res.json({
+    success: true,
+    message: "API is working!",
+    timestamp: new Date().toISOString(),
+    endpoints: [
+      "POST /api/content/test-generation",
+      "GET /api/content/business/:businessId", 
+      "GET /api/content/status/:businessId",
+      "POST /api/content/:contentId/approve",
+      "POST /api/content/:contentId/reject",
+      "POST /api/content/bulk-approve",
+      "GET /api/business/:businessId"
+    ]
+  });
 });
 
 // ===== GHL COMPATIBILITY ROUTES =====
@@ -873,7 +721,7 @@ app.post("/api/audit/submit", async (req, res) => {
   return app._router.handle(req, res);
 });
 
-// Error handling middleware
+// Generic error handling middleware
 app.use((err, req, res, next) => {
   terminal.error('💥 Unhandled error', {
     error: err.message,
@@ -885,7 +733,11 @@ app.use((err, req, res, next) => {
   
   res.status(500).json({ 
     error: 'Internal server error',
-    requestId: req.requestId 
+    requestId: req.requestId,
+    message: "Something went wrong. We're here to help.",
+    email: "support@brandaide.com",
+    phone: "(555) 123-4567",
+    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
   });
 });
 

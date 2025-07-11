@@ -1,5 +1,5 @@
 // src/api/contentApi.js
-// SIMPLE VERSION - Direct API calls, no proxy bullshit
+// UPDATED FOR LOCAL TESTING - No more CORS issues!
 
 const API_BASE = 'https://musical-winner-jj9x456wxp79h5p9g-5000.app.github.dev/api';
 
