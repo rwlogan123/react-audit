@@ -1,16 +1,16 @@
 // File: src/dashboards/ClientDashboard/ClientDashboard.jsx
 import React, { useState, useEffect } from 'react';
-import DashboardHeader from '../../components/shared/DashboardHeader';
-import TabNavigation from '../../components/shared/TabNavigation';
+import DashboardHeader from '../../components/shared/DashboardHeader.jsx';
+import TabNavigation from '../../components/shared/TabNavigation.jsx';
 import BlogPostsTab from './tabs/BlogPostsTab';
 import OverviewTab from './tabs/OverviewTab';
-// Only import existing tabs for now
-// import SocialMediaTab from './tabs/SocialMediaTab';
-// import EmailSequenceTab from './tabs/EmailSequenceTab';
-// import WebsiteTab from './tabs/WebsiteTab';
-// import ReviewsTab from './tabs/ReviewsTab';
-// import CitationsTab from './tabs/CitationsTab';
-// import AdsTab from './tabs/AdsTab';
+import SocialMediaTab from './tabs/SocialMediaTab.jsx';
+import EmailSequenceTab from './tabs/EmailSequenceTab.jsx';
+// Import other tabs as they get fixed
+// import WebsiteTab from './tabs/WebsiteTab.jsx';
+// import ReviewsTab from './tabs/ReviewsTab.jsx';
+// import CitationsTab from './tabs/CitationsTab.jsx';
+// import AdsTab from './tabs/AdsTab.jsx';
 import { contentApi } from '../../api/contentApi';
 
 const ClientDashboard = () => {
@@ -212,21 +212,16 @@ const ClientDashboard = () => {
 
       case 'social':
         return (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <h2>📱 Social Media</h2>
-            <div style={{
-              background: '#E1E1E1',
-              padding: "40px",
-              borderRadius: "12px",
-              maxWidth: "600px",
-              margin: "20px auto"
-            }}>
-              <p>Social Media tab component coming soon!</p>
-              <p style={{ fontSize: '14px', color: '#666' }}>
-                This will show platform-specific post management for Facebook, Instagram, and LinkedIn.
-              </p>
-            </div>
-          </div>
+          <SocialMediaTab 
+            businessName={businessInfo.name}
+            location={businessInfo.location}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onBulkApprove={(selectedIds) => {
+              // Handle bulk approve
+              selectedIds.forEach(id => handleApprove(id));
+            }}
+          />
         );
 
       case 'email':

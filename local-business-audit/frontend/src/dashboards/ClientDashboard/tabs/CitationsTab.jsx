@@ -578,4 +578,4 @@ const CitationsTabDemo = () => {
   );
 };
 
-export default CitationsTabDemo;
+export default CitationsTab;

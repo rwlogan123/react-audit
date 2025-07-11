@@ -594,4 +594,4 @@ const AdsTabDemo = () => {
   );
 };
 
-export default AdsTabDemo;
+export default AdsTab;

@@ -720,4 +720,4 @@ const EmailSequenceTabDemo = () => {
   );
 };
 
-export default EmailSequenceTabDemo;
+export default EmailSequenceTab;

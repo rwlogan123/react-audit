@@ -599,4 +599,4 @@ const WebsiteTabDemo = () => {
   );
 };
 
-export default WebsiteTabDemo;
+export default WebsiteTab;

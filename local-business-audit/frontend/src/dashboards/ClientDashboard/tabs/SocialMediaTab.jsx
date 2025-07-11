@@ -603,44 +603,4 @@ const SocialMediaTab = ({
   );
 };
 
-// Demo wrapper
-const SocialMediaTabDemo = () => {
-  return (
-    <div style={{
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      minHeight: "100vh",
-      background: "#f8fafc",
-    }}>
-      <div style={{
-        background: colors.primary,
-        color: colors.white,
-        padding: "20px",
-        textAlign: "center",
-      }}>
-        <h1>📱 Social Media Tab Component</h1>
-        <p style={{ opacity: 0.8 }}>Platform-specific post management with dual filtering</p>
-      </div>
-
-      <SocialMediaTab 
-        businessName="Eagle Mountain Remodeling"
-        location="Eagle Mountain, UT"
-        onApprove={(id) => console.log('Approved:', id)}
-        onReject={(id, feedback) => console.log('Rejected:', id, feedback)}
-        onBulkApprove={(ids) => console.log('Bulk approved:', ids)}
-      />
-
-      <div style={{
-        background: colors.primary,
-        color: colors.white,
-        padding: "20px",
-        textAlign: "center",
-      }}>
-        <div style={{ fontSize: "14px", opacity: "0.8" }}>
-          Ready for: src/dashboards/ClientDashboard/tabs/SocialMediaTab.jsx
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default SocialMediaTabDemo;
+export default SocialMediaTab;

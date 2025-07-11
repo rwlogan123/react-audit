@@ -769,4 +769,4 @@ const ReviewsTabDemo = () => {
   );
 };
 
-export default ReviewsTabDemo;
+export default ReviewsTab;
