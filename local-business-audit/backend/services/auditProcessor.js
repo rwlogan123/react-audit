@@ -1,5 +1,5 @@
-// auditProcessor.js - Comprehensive processor matching ActivePieces output
-// FIXED VERSION - Enhanced data processing and error handling
+// Enhanced Backend Audit Processor - Integrates ALL Service Files
+// This version DOES reference and use all your service files
 
 const competitorService = require('./competitorService');
 const keywordService = require('./keywordService');
@@ -9,1025 +9,569 @@ const reviewService = require('./reviewService');
 const schemaService = require('./schemaService');
 const websiteService = require('./websiteService');
 
-class AuditProcessor {
-  async processAudit(businessData) {
+class EnhancedAuditProcessor {
+  async processAudit(businessData, options = {}) {
     try {
       const start = Date.now();
-      console.log('🚀 Starting comprehensive audit processing (ActivePieces-level)...');
+      console.log('🚀 Starting Enhanced Audit Processing with ALL Services...');
 
-      // 🔧 FIX 1: Handle both data structures (with or without pre-processed results)
-      let allAnalysisResults;
+      // Configuration
+      const config = {
+        enableAllServices: options.enableAllServices !== false,
+        analysisDepth: options.depth || 'comprehensive',
+        enableFallbacks: options.enableFallbacks !== false
+      };
 
-      if (businessData.allAnalysisResults) {
-        // Use pre-processed results from server.js
-        console.log('📦 Using pre-processed service results...');
-        allAnalysisResults = businessData.allAnalysisResults;
-      } else {
-        // Run all services in parallel for better performance
-        console.log('🔄 Running all services in parallel...');
-        const [
-          websiteResults,
-          competitorResults,
-          keywordResults,
-          citationResults,
-          pagespeedResults,
-          schemaResults,
-          reviewResults
-        ] = await Promise.all([
-          this.safeServiceCall(websiteService, 'analyzeWebsite', businessData, 'websiteService'),
-          this.safeServiceCall(competitorService, 'analyzeCompetitors', businessData, 'competitorService'),
-          this.safeServiceCall(keywordService, 'analyzeKeywords', businessData, 'keywordService'),
-          this.safeServiceCall(citationService, 'analyzeCitations', businessData, 'citationService'),
-          this.safeServiceCall(pagespeedService, 'analyzePageSpeed', businessData, 'pagespeedService'),
-          this.safeServiceCall(schemaService, 'analyzeSchema', businessData, 'schemaService'),
-          this.safeServiceCall(reviewService, 'analyzeReviews', businessData, 'reviewService')
-        ]);
+      // === RUN ALL YOUR SERVICE FILES IN PARALLEL ===
+      const serviceResults = await this.executeAllServices(businessData, config);
+      
+      // === ENHANCED PROCESSING OF SERVICE RESULTS ===
+      const enhancedAnalysis = await this.processServiceResults(serviceResults, businessData);
+      
+      // === ADVANCED AGGREGATION ===
+      const finalResults = await this.aggregateEnhancedResults(enhancedAnalysis, serviceResults, businessData);
 
-        allAnalysisResults = {
-          websiteResults: websiteResults || {},
-          competitorResults: competitorResults || {},
-          keywordResults: keywordResults || {},
-          citationResults: citationResults || {},
-          pagespeedResults: pagespeedResults || {},
-          schemaResults: schemaResults || {},
-          reviewResults: reviewResults || {}
-        };
-      }
-
-      console.log('📊 Service results collected, processing comprehensive audit...');
-
-      // Use the original ActivePieces processing logic
-      const comprehensiveResult = await this.processAuditLikeActivePieces(businessData, allAnalysisResults);
-
-      const executionTime = Date.now() - start;
-      console.log(`✅ Comprehensive audit completed in ${executionTime}ms`);
-      console.log(`📈 Data points returned: ${Object.keys(comprehensiveResult).length}`);
-
-      return comprehensiveResult;
+      console.log(`✅ Enhanced audit completed in ${Date.now() - start}ms`);
+      return finalResults;
 
     } catch (error) {
-      console.error('❌ Error in comprehensive audit processing:', error);
+      console.error('❌ Enhanced audit processing failed:', error);
+      return this.handleProcessingError(error, businessData);
+    }
+  }
+
+  async executeAllServices(businessData, config) {
+    console.log('⚡ Executing ALL service files...');
+    
+    // Execute all your service files in parallel
+    const servicePromises = [
+      this.safeServiceCall(websiteService, 'analyzeWebsite', businessData, 'website'),
+      this.safeServiceCall(competitorService, 'analyzeCompetitors', businessData, 'competitor'),
+      this.safeServiceCall(keywordService, 'analyzeKeywords', businessData, 'keyword'),
+      this.safeServiceCall(citationService, 'analyzeCitations', businessData, 'citation'),
+      this.safeServiceCall(pagespeedService, 'analyzePageSpeed', businessData, 'pagespeed'),
+      this.safeServiceCall(schemaService, 'analyzeSchema', businessData, 'schema'),
+      this.safeServiceCall(reviewService, 'analyzeReviews', businessData, 'review')
+    ];
+
+    const results = await Promise.allSettled(servicePromises);
+    return this.processServicePromiseResults(results);
+  }
+
+  async safeServiceCall(service, methodName, businessData, serviceName) {
+    const start = Date.now();
+    
+    try {
+      console.log(`🔄 Executing ${serviceName} service...`);
+      
+      // Check if service and method exist
+      if (!service || typeof service[methodName] !== 'function') {
+        console.warn(`⚠️ Service ${serviceName}.${methodName} not available`);
+        return this.getServiceFallback(serviceName);
+      }
+
+      // Execute the actual service
+      const result = await service[methodName](businessData);
+      const duration = Date.now() - start;
+      
+      console.log(`✅ ${serviceName} service completed in ${duration}ms`);
+      
       return {
+        ...result,
+        serviceName,
+        executionTime: duration,
+        success: result.success !== false,
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error(`❌ ${serviceName} service failed:`, error.message);
+      
+      return {
+        ...this.getServiceFallback(serviceName),
+        serviceName,
         success: false,
-        error: 'Comprehensive audit processing failed',
-        message: error.message,
-        generatedAt: new Date().toISOString(),
+        error: error.message,
+        executionTime: Date.now() - start,
+        timestamp: new Date().toISOString()
       };
     }
   }
 
-  async safeServiceCall(service, methodName, businessData, serviceName) {
-    try {
-      if (service && typeof service[methodName] === 'function') {
-        console.log(`🔄 Calling ${serviceName}.${methodName}...`);
-        const result = await service[methodName](businessData);
-        console.log(`✅ ${serviceName} completed`);
-        return result;
+  processServicePromiseResults(results) {
+    const serviceResults = {};
+    const serviceNames = ['website', 'competitor', 'keyword', 'citation', 'pagespeed', 'schema', 'review'];
+    
+    results.forEach((result, index) => {
+      const serviceName = serviceNames[index];
+      
+      if (result.status === 'fulfilled') {
+        serviceResults[serviceName] = result.value;
       } else {
-        console.log(`⚠️ ${serviceName}.${methodName} not available, using fallback`);
-        return this.getServiceFallback(serviceName);
+        console.error(`Service ${serviceName} promise failed:`, result.reason);
+        serviceResults[serviceName] = {
+          ...this.getServiceFallback(serviceName),
+          promiseError: result.reason.message
+        };
       }
-    } catch (error) {
-      console.error(`❌ ${serviceName} failed:`, error.message);
-      return this.getServiceFallback(serviceName);
+    });
+    
+    return serviceResults;
+  }
+
+  async processServiceResults(serviceResults, businessData) {
+    console.log('📊 Processing service results with enhanced algorithms...');
+    
+    // Enhanced visibility scoring using ALL service results
+    const visibilityAnalysis = this.calculateEnhancedVisibilityScore(serviceResults, businessData);
+    
+    // Content strategy analysis from website service
+    const contentAnalysis = this.analyzeContentStrategy(serviceResults.website, businessData);
+    
+    // Technical analysis from pagespeed and schema services
+    const technicalAnalysis = this.analyzeTechnicalPerformance(serviceResults.pagespeed, serviceResults.schema);
+    
+    // Local SEO analysis from citation and website services
+    const localSEOAnalysis = this.analyzeLocalSEO(serviceResults.citation, serviceResults.website, businessData);
+    
+    // Competitive analysis from competitor service
+    const competitiveAnalysis = this.analyzeCompetitivePosition(serviceResults.competitor, businessData);
+    
+    // Review and reputation analysis
+    const reputationAnalysis = this.analyzeReputation(serviceResults.review, businessData);
+    
+    // Keyword performance analysis
+    const keywordAnalysis = this.analyzeKeywordPerformance(serviceResults.keyword, businessData);
+
+    return {
+      visibilityAnalysis,
+      contentAnalysis,
+      technicalAnalysis,
+      localSEOAnalysis,
+      competitiveAnalysis,
+      reputationAnalysis,
+      keywordAnalysis,
+      overallScore: this.calculateOverallScore([
+        visibilityAnalysis.score,
+        contentAnalysis.score,
+        technicalAnalysis.score,
+        localSEOAnalysis.score,
+        competitiveAnalysis.score,
+        reputationAnalysis.score,
+        keywordAnalysis.score
+      ])
+    };
+  }
+
+  calculateEnhancedVisibilityScore(serviceResults, businessData) {
+    // Use data from ALL services to calculate visibility
+    const components = {
+      websitePerformance: this.calculateWebsiteScore(serviceResults.website, serviceResults.pagespeed),
+      localRanking: this.calculateRankingScore(businessData.currentRank || 0),
+      citationQuality: this.calculateCitationScore(serviceResults.citation),
+      reviewProfile: this.calculateReviewScore(serviceResults.review),
+      contentQuality: this.calculateContentScore(serviceResults.website),
+      technicalSEO: this.calculateTechnicalScore(serviceResults.schema, serviceResults.pagespeed),
+      competitivePosition: this.calculateCompetitiveScore(serviceResults.competitor),
+      keywordOptimization: this.calculateKeywordScore(serviceResults.keyword)
+    };
+
+    const weights = {
+      websitePerformance: 0.20,
+      localRanking: 0.20,
+      citationQuality: 0.15,
+      reviewProfile: 0.15,
+      contentQuality: 0.10,
+      technicalSEO: 0.10,
+      competitivePosition: 0.05,
+      keywordOptimization: 0.05
+    };
+
+    const weightedScore = Object.entries(weights).reduce((total, [component, weight]) => {
+      return total + (components[component] * weight);
+    }, 0);
+
+    return {
+      score: Math.round(weightedScore),
+      breakdown: components,
+      weights,
+      performanceLevel: this.getPerformanceLevel(weightedScore)
+    };
+  }
+
+  // Individual scoring methods using service results
+  calculateWebsiteScore(websiteResults, pagespeedResults) {
+    if (!websiteResults?.success && !pagespeedResults?.success) return 0;
+    
+    const performanceScore = pagespeedResults?.overallSummary?.averageScore || 0;
+    const contentScore = websiteResults?.contentQuality || 0;
+    const localOptimization = websiteResults?.localOptimization || 0;
+    
+    return Math.round((performanceScore * 0.4) + (contentScore * 0.3) + (localOptimization * 0.3));
+  }
+
+  calculateRankingScore(rank) {
+    if (!rank || rank === 0) return 0;
+    if (rank === 1) return 100;
+    if (rank <= 3) return 85;
+    if (rank <= 5) return 70;
+    if (rank <= 10) return 50;
+    return Math.max(0, 30 - rank);
+  }
+
+  calculateCitationScore(citationResults) {
+    if (!citationResults?.success) return 0;
+    
+    const napScore = citationResults.napSummary?.consistencyScore || 0;
+    const directoryCount = citationResults.directoryCount || 0;
+    const socialScore = citationResults.socialSummary?.socialScore || 0;
+    
+    return Math.round((napScore * 0.5) + (Math.min(100, directoryCount * 2) * 0.3) + (socialScore * 0.2));
+  }
+
+  calculateReviewScore(reviewResults) {
+    if (!reviewResults?.success) return 0;
+    
+    const averageRating = reviewResults.averageRating || 0;
+    const totalReviews = reviewResults.totalReviews || 0;
+    const sentiment = reviewResults.sentiment?.overall || 0;
+    
+    const ratingScore = (averageRating / 5) * 100;
+    const volumeScore = Math.min(100, totalReviews * 4);
+    const sentimentScore = sentiment * 100;
+    
+    return Math.round((ratingScore * 0.4) + (volumeScore * 0.4) + (sentimentScore * 0.2));
+  }
+
+  calculateContentScore(websiteResults) {
+    if (!websiteResults?.success) return 0;
+    
+    const contentVolume = Math.min(100, (websiteResults.contentPages || 0) * 10);
+    const localOptimization = websiteResults.localOptimization || 0;
+    const keywordDensity = websiteResults.keywordOptimization || 0;
+    
+    return Math.round((contentVolume * 0.4) + (localOptimization * 0.4) + (keywordDensity * 0.2));
+  }
+
+  calculateTechnicalScore(schemaResults, pagespeedResults) {
+    const schemaScore = schemaResults?.score || 0;
+    const coreWebVitals = pagespeedResults?.coreWebVitals?.overall || 0;
+    const mobileScore = pagespeedResults?.mobileOptimization || 0;
+    
+    return Math.round((schemaScore * 0.4) + (coreWebVitals * 0.4) + (mobileScore * 0.2));
+  }
+
+  calculateCompetitiveScore(competitorResults) {
+    if (!competitorResults?.success) return 50; // Neutral when no data
+    
+    const marketPosition = competitorResults.marketPosition || 0;
+    const competitiveAdvantages = (competitorResults.advantages?.length || 0) * 10;
+    const threats = (competitorResults.threats?.length || 0) * 5;
+    
+    return Math.round(Math.max(0, Math.min(100, marketPosition + competitiveAdvantages - threats)));
+  }
+
+  calculateKeywordScore(keywordResults) {
+    if (!keywordResults?.success) return 0;
+    
+    const rankingKeywords = keywordResults.rankings?.length || 0;
+    const opportunityKeywords = keywordResults.opportunities?.length || 0;
+    const keywordDifficulty = keywordResults.avgDifficulty || 100;
+    
+    const rankingScore = Math.min(100, rankingKeywords * 10);
+    const opportunityScore = Math.min(50, opportunityKeywords * 5);
+    const difficultyPenalty = Math.max(0, (keywordDifficulty - 50) / 2);
+    
+    return Math.round(Math.max(0, rankingScore + opportunityScore - difficultyPenalty));
+  }
+
+  // Analysis methods that process service results
+  analyzeContentStrategy(websiteResults, businessData) {
+    if (!websiteResults?.success) {
+      return { score: 0, strategy: 'unavailable', recommendations: ['Website analysis required'] };
     }
+
+    const score = this.calculateContentScore(websiteResults);
+    
+    return {
+      score,
+      strategy: score >= 70 ? 'advanced' : score >= 50 ? 'intermediate' : 'needs_development',
+      contentVolume: websiteResults.contentPages || 0,
+      localOptimization: websiteResults.localOptimization || 0,
+      recommendations: this.generateContentRecommendations(score, websiteResults)
+    };
+  }
+
+  analyzeTechnicalPerformance(pagespeedResults, schemaResults) {
+    const score = this.calculateTechnicalScore(schemaResults, pagespeedResults);
+    
+    return {
+      score,
+      coreWebVitals: pagespeedResults?.coreWebVitals?.overall || 0,
+      schemaImplementation: schemaResults?.score || 0,
+      mobileOptimization: pagespeedResults?.mobileOptimization || 0,
+      status: score >= 70 ? 'good' : score >= 50 ? 'fair' : 'needs_improvement',
+      recommendations: this.generateTechnicalRecommendations(score, pagespeedResults, schemaResults)
+    };
+  }
+
+  analyzeLocalSEO(citationResults, websiteResults, businessData) {
+    const score = (this.calculateCitationScore(citationResults) + this.calculateContentScore(websiteResults)) / 2;
+    
+    return {
+      score,
+      napConsistency: citationResults?.napSummary?.consistencyScore || 0,
+      directoryPresence: citationResults?.directoryCount || 0,
+      localContent: websiteResults?.localOptimization || 0,
+      status: score >= 70 ? 'optimized' : score >= 50 ? 'moderate' : 'poor',
+      recommendations: this.generateLocalSEORecommendations(score, citationResults, websiteResults)
+    };
+  }
+
+  analyzeCompetitivePosition(competitorResults, businessData) {
+    const score = this.calculateCompetitiveScore(competitorResults);
+    
+    return {
+      score,
+      position: score >= 70 ? 'leader' : score >= 50 ? 'competitive' : 'challenger',
+      threats: competitorResults?.threats?.length || 0,
+      opportunities: competitorResults?.opportunities?.length || 0,
+      recommendations: this.generateCompetitiveRecommendations(score, competitorResults)
+    };
+  }
+
+  analyzeReputation(reviewResults, businessData) {
+    const score = this.calculateReviewScore(reviewResults);
+    
+    return {
+      score,
+      averageRating: reviewResults?.averageRating || 0,
+      totalReviews: reviewResults?.totalReviews || 0,
+      sentiment: reviewResults?.sentiment?.overall || 0,
+      status: score >= 80 ? 'excellent' : score >= 60 ? 'good' : 'needs_improvement',
+      recommendations: this.generateReputationRecommendations(score, reviewResults)
+    };
+  }
+
+  analyzeKeywordPerformance(keywordResults, businessData) {
+    const score = this.calculateKeywordScore(keywordResults);
+    
+    return {
+      score,
+      rankingKeywords: keywordResults?.rankings?.length || 0,
+      opportunityKeywords: keywordResults?.opportunities?.length || 0,
+      avgDifficulty: keywordResults?.avgDifficulty || 0,
+      status: score >= 70 ? 'strong' : score >= 50 ? 'moderate' : 'weak',
+      recommendations: this.generateKeywordRecommendations(score, keywordResults)
+    };
+  }
+
+  // Recommendation generators
+  generateContentRecommendations(score, websiteResults) {
+    const recommendations = [];
+    if (score < 50) recommendations.push('Develop comprehensive content strategy');
+    if (!websiteResults.localContent) recommendations.push('Create location-specific content');
+    if ((websiteResults.contentPages || 0) < 5) recommendations.push('Increase content volume');
+    return recommendations;
+  }
+
+  generateTechnicalRecommendations(score, pagespeedResults, schemaResults) {
+    const recommendations = [];
+    if (score < 50) recommendations.push('Implement technical SEO improvements');
+    if (!schemaResults?.hasLocalBusiness) recommendations.push('Add LocalBusiness schema');
+    if ((pagespeedResults?.coreWebVitals?.overall || 0) < 70) recommendations.push('Optimize Core Web Vitals');
+    return recommendations;
+  }
+
+  generateLocalSEORecommendations(score, citationResults, websiteResults) {
+    const recommendations = [];
+    if ((citationResults?.napSummary?.consistencyScore || 0) < 80) recommendations.push('Fix NAP consistency');
+    if ((citationResults?.directoryCount || 0) < 20) recommendations.push('Increase directory presence');
+    if ((websiteResults?.localOptimization || 0) < 60) recommendations.push('Improve local content optimization');
+    return recommendations;
+  }
+
+  generateCompetitiveRecommendations(score, competitorResults) {
+    const recommendations = [];
+    if (score < 50) recommendations.push('Develop competitive differentiation');
+    if ((competitorResults?.threats?.length || 0) > 0) recommendations.push('Address competitive threats');
+    if ((competitorResults?.opportunities?.length || 0) > 0) recommendations.push('Capitalize on opportunities');
+    return recommendations;
+  }
+
+  generateReputationRecommendations(score, reviewResults) {
+    const recommendations = [];
+    if ((reviewResults?.totalReviews || 0) < 10) recommendations.push('Increase review volume');
+    if ((reviewResults?.averageRating || 0) < 4.5) recommendations.push('Improve service quality');
+    if ((reviewResults?.sentiment?.overall || 0) < 0.8) recommendations.push('Address negative sentiment');
+    return recommendations;
+  }
+
+  generateKeywordRecommendations(score, keywordResults) {
+    const recommendations = [];
+    if ((keywordResults?.rankings?.length || 0) < 5) recommendations.push('Improve keyword rankings');
+    if ((keywordResults?.opportunities?.length || 0) > 0) recommendations.push('Target opportunity keywords');
+    if ((keywordResults?.avgDifficulty || 0) > 70) recommendations.push('Focus on easier keywords');
+    return recommendations;
+  }
+
+  async aggregateEnhancedResults(enhancedAnalysis, serviceResults, businessData) {
+    console.log('📋 Aggregating comprehensive results from all services...');
+    
+    // Generate enhanced action items based on ALL service results
+    const actionItems = this.generateEnhancedActionItems(enhancedAnalysis, serviceResults);
+    
+    return {
+      success: true,
+      
+      // Overall metrics from enhanced analysis
+      overallScore: enhancedAnalysis.overallScore,
+      performanceLevel: enhancedAnalysis.visibilityAnalysis.performanceLevel,
+      
+      // Service-specific results
+      websiteAnalysis: this.formatServiceResult(serviceResults.website, enhancedAnalysis.contentAnalysis),
+      competitorAnalysis: this.formatServiceResult(serviceResults.competitor, enhancedAnalysis.competitiveAnalysis),
+      keywordAnalysis: this.formatServiceResult(serviceResults.keyword, enhancedAnalysis.keywordAnalysis),
+      citationAnalysis: this.formatServiceResult(serviceResults.citation, enhancedAnalysis.localSEOAnalysis),
+      pagespeedAnalysis: this.formatServiceResult(serviceResults.pagespeed, enhancedAnalysis.technicalAnalysis),
+      schemaAnalysis: this.formatServiceResult(serviceResults.schema, enhancedAnalysis.technicalAnalysis),
+      reviewAnalysis: this.formatServiceResult(serviceResults.review, enhancedAnalysis.reputationAnalysis),
+      
+      // Enhanced analytics
+      visibilityBreakdown: enhancedAnalysis.visibilityAnalysis.breakdown,
+      contentStrategy: enhancedAnalysis.contentAnalysis,
+      technicalPerformance: enhancedAnalysis.technicalAnalysis,
+      localSEOStrategy: enhancedAnalysis.localSEOAnalysis,
+      competitivePosition: enhancedAnalysis.competitiveAnalysis,
+      reputationManagement: enhancedAnalysis.reputationAnalysis,
+      keywordStrategy: enhancedAnalysis.keywordAnalysis,
+      
+      // Action items with service attribution
+      actionItems,
+      
+      // Service execution metadata
+      serviceExecutionTimes: Object.keys(serviceResults).reduce((acc, key) => {
+        acc[key] = serviceResults[key].executionTime || 0;
+        return acc;
+      }, {}),
+      
+      servicesCompleted: Object.keys(serviceResults).reduce((acc, key) => {
+        acc[key] = serviceResults[key].success !== false;
+        return acc;
+      }, {}),
+      
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  formatServiceResult(serviceResult, enhancedAnalysis) {
+    return {
+      ...serviceResult,
+      enhancedScore: enhancedAnalysis?.score || 0,
+      enhancedStatus: enhancedAnalysis?.status || 'unknown',
+      enhancedRecommendations: enhancedAnalysis?.recommendations || []
+    };
+  }
+
+  generateEnhancedActionItems(enhancedAnalysis, serviceResults) {
+    const critical = [];
+    const moderate = [];
+    const minor = [];
+
+    // Analyze each service for action items
+    Object.entries(serviceResults).forEach(([serviceName, result]) => {
+      if (result.criticalIssues) {
+        result.criticalIssues.forEach(issue => {
+          critical.push({
+            task: issue,
+            source: serviceName,
+            impact: 'High',
+            category: serviceName
+          });
+        });
+      }
+      
+      if (result.recommendations) {
+        result.recommendations.forEach(rec => {
+          moderate.push({
+            task: rec,
+            source: serviceName,
+            impact: 'Medium',
+            category: serviceName
+          });
+        });
+      }
+    });
+
+    // Add analysis-based recommendations
+    Object.entries(enhancedAnalysis).forEach(([analysisType, analysis]) => {
+      if (analysis.recommendations) {
+        analysis.recommendations.forEach(rec => {
+          if (analysis.score < 40) {
+            critical.push({ task: rec, source: analysisType, impact: 'High' });
+          } else if (analysis.score < 70) {
+            moderate.push({ task: rec, source: analysisType, impact: 'Medium' });
+          } else {
+            minor.push({ task: rec, source: analysisType, impact: 'Low' });
+          }
+        });
+      }
+    });
+
+    return {
+      critical: [...new Set(critical.map(item => item.task))].map(task => ({ task, impact: 'High' })),
+      moderate: [...new Set(moderate.map(item => item.task))].map(task => ({ task, impact: 'Medium' })),
+      minor: [...new Set(minor.map(item => item.task))].map(task => ({ task, impact: 'Low' })),
+      all: [...new Set([...critical, ...moderate, ...minor].map(item => item.task))]
+    };
+  }
+
+  calculateOverallScore(scores) {
+    const validScores = scores.filter(score => typeof score === 'number' && !isNaN(score));
+    return validScores.length ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : 0;
+  }
+
+  getPerformanceLevel(score) {
+    if (score >= 90) return "Exceptional";
+    if (score >= 80) return "Excellent";
+    if (score >= 70) return "Good";
+    if (score >= 60) return "Fair";
+    if (score >= 40) return "Needs Improvement";
+    return "Critical";
   }
 
   getServiceFallback(serviceName) {
     const fallbacks = {
-      websiteService: {
-        success: true,
-        localContentScore: 50,
-        hasCityInTitle: false,
-        hasCityInMetaDescription: false,
-        hasCityInHeadings: false,
-        hasServicePagesForLocation: false,
-        hasContactPage: false,
-        hasAddress: false,
-        hasPhone: false,
-        hasReviewsPage: false,
-        hasServiceAreaPage: false,
-        localOptimizationStatus: 'Unknown',
-        improvementOpportunities: ['Improve local content optimization'],
-        blogLinks: [],
-        contentGaps: [],
-        contentOpportunities: [],
-        contentQuality: 50,
-        contentFreshness: 50,
-        socialPlatforms: [],
-        socialEngagement: 0,
-        socialPresence: 0,
-        socialOpportunities: []
-      },
-      competitorService: {
-        success: true,
-        competitors: [],
-        businessData: {
-          photoCount: 0,
-          reviewCount: 0,
-          rating: 0,
-          completenessScore: 0,
-          currentRank: 0,
-          businessName: businessData.businessName || '',
-          gbpPosts: []
-        },
-        currentRank: 0,
-        marketPosition: 'unknown',
-        threats: [],
-        opportunities: [],
-        strengths: [],
-        weaknesses: [],
-        gaps: []
-      },
-      keywordService: {
-        success: true,
-        keywords: [],
-        primaryKeywords: [],
-        totalKeywords: 0,
-        rankedKeywords: 0,
-        averagePosition: 0,
-        topKeywords: [],
-        opportunities: [],
-        searchVolumes: [],
-        difficulty: [],
-        currentRankings: [],
-        analysis: {},
-        recommendations: [],
-        score: 50
-      },
-      citationService: {
-        success: true,
-        directoryAnalysis: { tier1Found: [], industryFound: [] },
-        consistencyScores: { tier1Coverage: 0, napConsistency: 0 },
-        directoryCount: 0,
-        directoryLinks: [],
-        recommendations: [],
-        napSummary: {},
-        socialSummary: { socialScore: 0, platforms: [] },
-        inconsistencies: []
-      },
-      pagespeedService: {
-        success: true,
-        overallSummary: { averageScore: 50, primaryMetric: '0 s', mobileScore: 50, desktopScore: 50 },
-        insights: [],
-        recommendations: [],
-        coreWebVitals: {},
-        issues: []
-      },
-      schemaService: {
-        success: true,
-        hasSchema: false,
-        hasLocalSchema: false,
-        hasOrganizationSchema: false,
-        hasBreadcrumbSchema: false,
-        hasProductSchema: false,
-        typesFound: [],
-        score: 0,
-        errors: [],
-        warnings: [],
-        recommendations: ['Add LocalBusiness schema markup']
-      },
-      reviewService: {
-        success: true,
-        businessReviewCount: 0,
-        businessRating: 0,
-        avgCompetitorRating: 0,
-        avgCompetitorReviewCount: 0,
-        competitiveInsights: [],
-        improvementOpportunities: [],
-        reviewPlatforms: null,
-        score: 50
-      }
+      website: { success: false, contentQuality: 0, localOptimization: 0 },
+      competitor: { success: false, marketPosition: 0, threats: [], opportunities: [] },
+      keyword: { success: false, rankings: [], opportunities: [], avgDifficulty: 100 },
+      citation: { success: false, napSummary: { consistencyScore: 0 }, directoryCount: 0 },
+      pagespeed: { success: false, overallSummary: { averageScore: 0 }, coreWebVitals: { overall: 0 } },
+      schema: { success: false, score: 0, hasLocalBusiness: false },
+      review: { success: false, averageRating: 0, totalReviews: 0, sentiment: { overall: 0 } }
     };
 
-    return fallbacks[serviceName] || { success: false, error: 'Service not available' };
+    return fallbacks[serviceName] || { success: false, message: `${serviceName} unavailable` };
   }
 
-  // This is the core ActivePieces processing logic adapted for Express services
-  async processAuditLikeActivePieces(businessData, allAnalysisResults) {
-    // 🔧 FIX 2: Enhanced location data extraction with multiple fallbacks
-    const getLocationData = (data) => {
-      // Try different location field combinations
-      const city = data.city || data.businessCity || '';
-      const state = data.state || data.businessState || '';
-      
-      // If we have separate city/state, use those
-      if (city && state) {
-        return { city, state, location: `${city}, ${state}` };
-      }
-      
-      // Try to parse combined location field
-      const location = data.location || data.businessLocation || '';
-      if (location && location.includes(',')) {
-        const parts = location.split(',').map(p => p.trim());
-        return {
-          city: parts[0] || '',
-          state: parts[1] || '',
-          location: location
-        };
-      }
-      
-      return { city, state, location };
-    };
-
-    // Utility function for safe array operations
-    const safeArray = (arr) => (Array.isArray(arr) ? arr : []);
-
-    // Enhanced utility function for GBP post activity with quality metrics
-    const calculateGBPActivity = (posts = []) => {
-      const safePosts = safeArray(posts);
-      const latestPost = safePosts[0];
-      const daysSinceLastPost = latestPost?.date
-        ? Math.floor(
-            (Date.now() - new Date(latestPost.date).getTime()) /
-              (1000 * 60 * 60 * 24),
-          )
-        : null;
-
-      return {
-        postCount: safePosts.length,
-        latestPostDate: latestPost?.date || null,
-        snippets: safePosts
-          .slice(0, 3)
-          .map((p) => p.snippet || p.text || "")
-          .filter(Boolean),
-        frequency:
-          safePosts.length > 12
-            ? "Regular"
-            : safePosts.length > 4
-              ? "Moderate"
-              : safePosts.length > 0
-                ? "Low"
-                : "None",
-        daysSinceLastPost,
-        recentActivity: daysSinceLastPost
-          ? daysSinceLastPost < 7
-            ? "Active"
-            : daysSinceLastPost < 30
-              ? "Moderate"
-              : "Inactive"
-          : "Inactive",
-        isFresh: daysSinceLastPost !== null && daysSinceLastPost < 45,
-        qualityScore:
-          daysSinceLastPost < 30
-            ? "High"
-            : daysSinceLastPost < 90
-              ? "Medium"
-              : "Low",
-        lastPostRange:
-          daysSinceLastPost === null
-            ? "Never"
-            : daysSinceLastPost < 7
-              ? "This Week"
-              : daysSinceLastPost < 14
-                ? "Recent"
-                : daysSinceLastPost < 30
-                  ? "Getting Stale"
-                  : daysSinceLastPost < 60
-                    ? "Stale"
-                    : "Outdated",
-      };
-    };
-
-    // Utility function to calculate industry percentiles
-    const calculatePercentile = (value, benchmarkValue) => {
-      if (!value || !benchmarkValue) return 0;
-      const ratio = value / benchmarkValue;
-      if (ratio >= 2) return 95;
-      if (ratio >= 1.5) return 85;
-      if (ratio >= 1.2) return 75;
-      if (ratio >= 1) return 60;
-      if (ratio >= 0.8) return 45;
-      if (ratio >= 0.6) return 30;
-      if (ratio >= 0.4) return 20;
-      return 10;
-    };
-
-    // Dynamic industry benchmarks
-    const getIndustryBenchmarks = (businessType, category) => {
-      const type = (businessType || category || "").toLowerCase();
-
-      const benchmarkMap = {
-        carpenter: {
-          reviewCount: 15,
-          photoCount: 25,
-          rating: 4.4,
-          directoryPresence: 75,
-          napConsistency: 85,
-        },
-        construction: {
-          reviewCount: 18,
-          photoCount: 30,
-          rating: 4.3,
-          directoryPresence: 80,
-          napConsistency: 90,
-        },
-        contractor: {
-          reviewCount: 16,
-          photoCount: 28,
-          rating: 4.4,
-          directoryPresence: 78,
-          napConsistency: 88,
-        },
-        restaurant: {
-          reviewCount: 50,
-          photoCount: 40,
-          rating: 4.5,
-          directoryPresence: 85,
-          napConsistency: 95,
-        },
-        dental: {
-          reviewCount: 30,
-          photoCount: 20,
-          rating: 4.7,
-          directoryPresence: 90,
-          napConsistency: 95,
-        },
-        medical: {
-          reviewCount: 25,
-          photoCount: 18,
-          rating: 4.6,
-          directoryPresence: 88,
-          napConsistency: 95,
-        },
-        lawyer: {
-          reviewCount: 12,
-          photoCount: 15,
-          rating: 4.6,
-          directoryPresence: 85,
-          napConsistency: 92,
-        },
-        attorney: {
-          reviewCount: 12,
-          photoCount: 15,
-          rating: 4.6,
-          directoryPresence: 85,
-          napConsistency: 92,
-        },
-        plumber: {
-          reviewCount: 20,
-          photoCount: 22,
-          rating: 4.4,
-          directoryPresence: 80,
-          napConsistency: 88,
-        },
-        electrician: {
-          reviewCount: 18,
-          photoCount: 20,
-          rating: 4.5,
-          directoryPresence: 82,
-          napConsistency: 90,
-        },
-        hvac: {
-          reviewCount: 22,
-          photoCount: 25,
-          rating: 4.3,
-          directoryPresence: 85,
-          napConsistency: 90,
-        },
-        auto: {
-          reviewCount: 35,
-          photoCount: 30,
-          rating: 4.4,
-          directoryPresence: 88,
-          napConsistency: 92,
-        },
-        default: {
-          reviewCount: 12,
-          photoCount: 20,
-          rating: 4.5,
-          directoryPresence: 80,
-          napConsistency: 90,
-        },
-      };
-
-      // Find matching industry
-      for (const [key, values] of Object.entries(benchmarkMap)) {
-        if (type.includes(key)) return values;
-      }
-
-      return benchmarkMap.default;
-    };
-
-    // Extract data from all analysis results
-    const {
-      websiteResults = {},
-      competitorResults = {},
-      keywordResults = {},
-      citationResults = {},
-      pagespeedResults = {},
-      schemaResults = {},
-      reviewResults = {},
-    } = allAnalysisResults;
-
-    // 🔧 FIX 3: Enhanced business information extraction
-    const businessName = businessData.businessName || "";
-    const locationData = getLocationData(businessData);
-    const { city, state, location } = locationData;
-    
-    const businessType =
-      businessData.tradeType || businessData.businessType || "";
-    const marketingGoal = businessData.marketingGoal || businessData.primaryGoal || "";
-
-    console.log('📍 Processed location data:', locationData);
-
-    // Extract key metrics from each service with smart fallbacks
-    const photoCount = competitorResults.businessData?.photoCount || 0;
-    const reviewCount =
-      reviewResults.businessReviewCount ||
-      competitorResults.businessData?.reviewCount ||
-      0;
-    const rating =
-      reviewResults.businessRating ||
-      competitorResults.businessData?.rating ||
-      0;
-    const completenessScore =
-      competitorResults.businessData?.completenessScore || 0;
-    const currentRank = competitorResults.businessData?.currentRank || 0;
-
-    // Website and performance metrics
-    const localContentScore = websiteResults.localContentScore || 0;
-    const websiteScore = Math.round(
-      pagespeedResults.overallSummary?.averageScore || 0,
-    );
-    const schemaScore = schemaResults.score || 0;
-    const pageSpeed = pagespeedResults.overallSummary?.primaryMetric || "0 s";
-
-    // Citation and NAP metrics
-    const tier1DirectoryCoverage = Math.round(
-      citationResults.consistencyScores?.tier1Coverage || 0,
-    );
-    const napConsistencyScore =
-      citationResults.consistencyScores?.napConsistency || 0;
-
-    // Competitor analysis
-    const competitors = competitorResults.competitors || [];
-    const avgCompetitorRating = reviewResults.avgCompetitorRating || 0;
-    const avgCompetitorReviews = reviewResults.avgCompetitorReviewCount || 0;
-
-    // Calculate visibility score based on multiple factors
-    const calculateRankingScore = (rank) => {
-      if (rank === 0) return 0;
-      if (rank === 1) return 20;
-      if (rank <= 3) return 15;
-      if (rank <= 5) return 12;
-      if (rank <= 10) return 8;
-      if (rank <= 20) return 4;
-      return 1;
-    };
-
-    const rankingPoints = calculateRankingScore(currentRank);
-    const hasRankingData = currentRank > 0;
-
-    const visibilityBreakdown = {
-      gbpCompleteness: Math.round(completenessScore * 0.4),
-      websiteQuality: Math.round(websiteScore * 0.4),
-      localRanking: rankingPoints,
-      localRankingStatus: hasRankingData ? "tracked" : "not_tracked",
-    };
-
-    const visibilityScore = Math.round(
-      visibilityBreakdown.gbpCompleteness +
-        visibilityBreakdown.websiteQuality +
-        visibilityBreakdown.localRanking,
-    );
-
-    // Performance level assessment
-    const performanceLevel =
-      visibilityScore >= 80
-        ? "Excellent"
-        : visibilityScore >= 60
-          ? "Good"
-          : visibilityScore >= 40
-            ? "Fair"
-            : "Needs Improvement";
-
-    // Industry benchmarks and competitive analysis
-    const industryBenchmarks = getIndustryBenchmarks(
-      businessType,
-      competitorResults.businessData?.categories?.[0],
-    );
-
-    // Generate improvement opportunities from all services
-    const structureActionItems = (items, impact, effort) =>
-      safeArray(items)
-        .sort()
-        .map((task) => ({ task, impact, effort }));
-
-    const criticalImprovements = [];
-    const moderateImprovements = [];
-    const minorImprovements = [];
-
-    // Website improvements
-    if (websiteResults.improvementOpportunities) {
-      safeArray(websiteResults.improvementOpportunities).forEach(
-        (improvement) => {
-          if (
-            improvement.includes("schema") ||
-            improvement.includes("title") ||
-            improvement.includes("heading")
-          ) {
-            criticalImprovements.push(improvement);
-          } else {
-            moderateImprovements.push(improvement);
-          }
-        },
-      );
-    }
-
-    // Schema improvements
-    if (schemaScore === 0) {
-      criticalImprovements.push(
-        "Add LocalBusiness schema markup to your website",
-      );
-    }
-
-    // NAP improvements
-    if (napConsistencyScore < 80) {
-      criticalImprovements.push("Fix NAP consistency across directories");
-    }
-
-    // Citation improvements
-    if (tier1DirectoryCoverage < 50) {
-      moderateImprovements.push("Improve directory citations coverage");
-    }
-
-    // Performance improvements
-    if (websiteScore < 50) {
-      criticalImprovements.push(
-        "Improve website performance and loading speed",
-      );
-    } else if (websiteScore < 70) {
-      moderateImprovements.push(
-        "Optimize website performance for better user experience",
-      );
-    }
-
-    // Review improvements
-    if (reviewCount < 5) {
-      criticalImprovements.push(
-        "Get more reviews on GBP (essential for trust)",
-      );
-    } else if (reviewCount < 20) {
-      moderateImprovements.push("Continue gathering reviews (target 20+)");
-    }
-
-    // Photo improvements
-    if (photoCount < 5) {
-      criticalImprovements.push(
-        "Add more photos to GBP (critical for visibility)",
-      );
-    } else if (photoCount < 15) {
-      moderateImprovements.push("Add more photos to GBP (aim for 15+)");
-    }
-
-    // Content improvements
-    const blogLinks = websiteResults.blogLinks || [];
-    if (blogLinks.length === 0) {
-      minorImprovements.push("Create local content blog posts");
-    }
-
-    // Add specific citation recommendations
-    if (citationResults.recommendations) {
-      safeArray(citationResults.recommendations).forEach((rec) => {
-        minorImprovements.push(rec);
-      });
-    }
-
-    const allImprovements = [
-      ...criticalImprovements,
-      ...moderateImprovements,
-      ...minorImprovements,
-    ];
-    const uniqueImprovements = [...new Set(allImprovements)].sort();
-
-    // Citation analysis
-    const TIER_1_SITES = [
-      "google.com",
-      "yelp.com",
-      "facebook.com",
-      "bing.com",
-      "apple.com",
-      "bbb.org",
-    ];
-    const getIndustrySpecificSites = (category, businessType) => {
-      const lowerCategory = (category || businessType || "")
-        .toLowerCase()
-        .trim();
-      if (
-        lowerCategory.includes("carpenter") ||
-        lowerCategory.includes("construction") ||
-        lowerCategory.includes("contractor")
-      ) {
-        return ["thumbtack.com", "angi.com", "homeadvisor.com", "houzz.com"];
-      } else if (
-        lowerCategory.includes("restaurant") ||
-        lowerCategory.includes("food")
-      ) {
-        return ["opentable.com", "doordash.com", "ubereats.com", "grubhub.com"];
-      }
-      return ["thumbtack.com", "angi.com", "yellowpages.com", "superpages.com"];
-    };
-
-    const OTHER_IMPORTANT_SITES = getIndustrySpecificSites(
-      competitorResults.businessData?.categories?.[0],
-      businessType,
-    );
-
-    const foundDomains = citationResults.directoryAnalysis?.tier1Found || [];
-    const foundOtherSites =
-      citationResults.directoryAnalysis?.industryFound || [];
-
-    const getDomainLabel = (domain) => {
-      const domainMap = {
-        "thumbtack.com": "Thumbtack",
-        "angi.com": "Angi",
-        "homeadvisor.com": "HomeAdvisor",
-        "houzz.com": "Houzz",
-        "yelp.com": "Yelp.com",
-        "bbb.org": "Bbb.org",
-      };
-      return (
-        domainMap[domain] || domain.charAt(0).toUpperCase() + domain.slice(1)
-      );
-    };
-
-    const otherCitationWins = foundOtherSites.map((domain) =>
-      getDomainLabel(domain),
-    );
-
-    // Enhanced GBP Post Activity
-    const gbpPostActivity = calculateGBPActivity(
-      competitorResults.businessData?.gbpPosts || [],
-    );
-
-    // Enhanced metrics calculations
-    const numericTier1Coverage = Number(tier1DirectoryCoverage) || 0;
-    const numericReviewCount = Number(reviewCount) || 0;
-    const numericRating = Number(rating) || 0;
-    const numericPhotoCount = Number(photoCount) || 0;
-    const numericVisibilityScore = Number(visibilityScore) || 0;
-    const numericNapScore = Number(napConsistencyScore) || 0;
-    const numericSchemaScore = Number(schemaScore) || 0;
-
-    // Competitive analysis
-    const competitiveGaps = {
-      directoryPresenceGap:
-        industryBenchmarks.directoryPresence - numericTier1Coverage,
-      reviewGap: Math.max(
-        0,
-        industryBenchmarks.reviewCount - numericReviewCount,
-      ),
-      ratingGap: Math.max(0, industryBenchmarks.rating - numericRating),
-      photoGap: Math.max(0, industryBenchmarks.photoCount - numericPhotoCount),
-      napGap: Math.max(0, industryBenchmarks.napConsistency - numericNapScore),
-      missedOpportunityPercent: Math.round((100 - numericTier1Coverage) * 0.4),
-      competitorDirectoryAverage: 45,
-      websiteOptimizationGap:
-        websiteResults.localOptimizationStatus === "Poor"
-          ? "Behind"
-          : websiteResults.localOptimizationStatus === "Fair"
-            ? "Competitive"
-            : "Leading",
-    };
-
-    // Industry position with percentiles
-    const industryPosition = {
-      reviewsPercentile: calculatePercentile(
-        numericReviewCount,
-        industryBenchmarks.reviewCount,
-      ),
-      photosPercentile: calculatePercentile(
-        numericPhotoCount,
-        industryBenchmarks.photoCount,
-      ),
-      ratingPercentile: calculatePercentile(
-        numericRating,
-        industryBenchmarks.rating,
-      ),
-      overallRanking:
-        numericVisibilityScore >= 90
-          ? "Top 5%"
-          : numericVisibilityScore >= 80
-            ? "Top 15%"
-            : numericVisibilityScore >= 70
-              ? "Top 25%"
-              : numericVisibilityScore >= 60
-                ? "Top 50%"
-                : "Below Average",
-    };
-
-    // Progress metrics for UI
-    const progressMetrics = {
-      contentProgress: Math.round((blogLinks.length / 6) * 100),
-      photoProgress: Math.round((numericPhotoCount / 20) * 100),
-      reviewProgress: Math.round(
-        (numericReviewCount / industryBenchmarks.reviewCount) * 100,
-      ),
-      citationProgress: Math.round(
-        (foundDomains.length / TIER_1_SITES.length) * 100,
-      ),
-      overallProgress: Math.round(numericVisibilityScore),
-      napProgress:
-        numericNapScore > 0 ? Math.round((numericNapScore / 100) * 100) : 0,
-    };
-
-    // Summary and highlights
-    const topPriorities =
-      criticalImprovements.length > 0
-        ? criticalImprovements.slice(0, 3)
-        : uniqueImprovements.slice(0, 3);
-
-    const auditSummary =
-      `${businessName} has an ${performanceLevel.toLowerCase()} visibility score of ${visibilityScore}/100. ` +
-      `Current ranking: ${hasRankingData ? `#${currentRank} in local search` : "No Maps visibility tracked"}. ` +
-      `Top priorities: ${topPriorities.join(", ")}.`;
-
-    const highlights = {
-      topIssue:
-        criticalImprovements.length > 0
-          ? criticalImprovements[0]
-          : uniqueImprovements[0] || "Continue monitoring performance",
-      visibilityStatus: `${performanceLevel} (${visibilityScore}/100)`,
-      rankStatus: hasRankingData
-        ? `#${currentRank} in local search`
-        : "No Maps visibility tracked",
-      reviewStatus: `${rating}-star average rating from ${reviewCount} reviews`,
-      urgentActionCount: criticalImprovements.length,
-      napStatus: napConsistencyScore
-        ? `${napConsistencyScore}% consistent`
-        : "Not analyzed",
-      socialStatus: citationResults.socialSummary?.socialScore
-        ? `${citationResults.socialSummary.socialScore}/100 social score`
-        : "Not analyzed",
-    };
-
-    // Review template
-    const reviewTemplateType = rating >= 4.5 ? "positive" : "neutral";
-    const reviewTemplate =
-      reviewTemplateType === "positive"
-        ? `Hi [Customer Name], we're thrilled you chose ${businessName}! If you have a moment, we'd love a review: [Review Link]`
-        : `Hi [Customer Name], thank you for choosing ${businessName}! Your feedback helps us improve. Please share your experience: [Review Link]`;
-
-    const executionTimeMs = Math.max(Date.now() - Date.now(), 150);
-
-    console.log("✅ Final audit processing completed");
-
-    // Return comprehensive audit results matching ActivePieces structure
+  handleProcessingError(error, businessData) {
     return {
-      success: true,
-      visibilityScore,
-      visibilityBreakdown,
-      localContentScore,
-      websiteScore,
-      schemaScore,
-      pageSpeed,
-      completenessScore,
-      currentRank,
-      reviewCount,
-      rating,
-      photoCount,
-      businessName,
-
-      // Enhanced analysis sections
-      tier1DirectoryCoverage,
-      criticalCitationScore: tier1DirectoryCoverage,
-      directoryLinksCount: citationResults.directoryCount || 0,
-      otherCitationsCount: 0,
-      topDirectories: [...foundDomains, ...foundOtherSites],
-      foundDomains,
-      foundOtherSites,
-      otherCitationWins,
-      avgCompetitorRating,
-      avgCompetitorReviews,
-      competitors: competitors.slice(0, 20), // Limit for performance
-
-      auditSummary,
-      performanceLevel,
-
-      actionItems: {
-        critical: structureActionItems(criticalImprovements, "High", "Low"),
-        moderate: structureActionItems(
-          moderateImprovements,
-          "Medium",
-          "Medium",
-        ),
-        minor: structureActionItems(minorImprovements, "Low", "Low"),
-        all: structureActionItems(uniqueImprovements, "Varies", "Varies"),
+      success: false,
+      error: error.message,
+      errorType: error.name || 'ProcessingError',
+      timestamp: new Date().toISOString(),
+      businessData: {
+        businessName: businessData?.businessName || 'Unknown',
+        location: businessData?.location || 'Unknown'
       },
-
-      totalImprovementsCount: uniqueImprovements.length,
-      reviewTemplate,
-      reviewTemplateType,
-      reviewTemplateLabel:
-        reviewTemplateType === "positive"
-          ? "Request review (positive)"
-          : "Request review (standard)",
-      gbpPostActivity,
-
-      // Website analysis details
-      blogActivity: blogLinks,
-      hasCityInTitle: websiteResults.hasCityInTitle || false,
-      hasCityInMetaDescription:
-        websiteResults.hasCityInMetaDescription || false,
-      hasCityInHeadings: websiteResults.hasCityInHeadings || false,
-      hasServicePagesForLocation:
-        websiteResults.hasServicePagesForLocation || false,
-      hasLocalSchema: schemaResults.hasSchema || false,
-      hasContactPage: websiteResults.hasContactPage || false,
-      hasAddress: websiteResults.hasAddress || false,
-      hasPhone: websiteResults.hasPhone || false,
-      hasReviewsPage: websiteResults.hasReviewsPage || false,
-      hasServiceAreaPage: websiteResults.hasServiceAreaPage || false,
-      optimizationStatus: websiteResults.localOptimizationStatus || "Unknown",
-
-      // Schema Analysis
-      schemaAnalysis: {
-        hasLocalBusinessSchema: schemaResults.hasSchema || false,
-        hasOrganizationSchema: schemaResults.hasOrganizationSchema || false,
-        hasBreadcrumbSchema: schemaResults.hasBreadcrumbSchema || false,
-        hasProductSchema: schemaResults.hasProductSchema || false,
-        typesFound: schemaResults.typesFound || [],
-        schemaScore: schemaScore,
-      },
-
-      // Visual/UX Summary
-      summary: {
-        visibility: performanceLevel,
-        rank: hasRankingData ? `#${currentRank}` : "Unranked",
-        score: visibilityScore,
-        issues: uniqueImprovements.length,
-        topTask:
-          criticalImprovements.length > 0
-            ? criticalImprovements[0]
-            : uniqueImprovements[0] || "Continue monitoring performance",
-      },
-
-      // Industry Analysis
-      industryBenchmarks,
-      industryPosition,
-      competitiveGaps,
-      progressMetrics,
-      highlights,
-
-      // Detailed Analysis Sections
-      napAnalysis: {
-        primaryPhone:
-          citationResults.napSummary?.anchorPhone ||
-          businessData.businessPhone ||
-          businessData.phone ||
-          null,
-        primaryEmail: citationResults.napSummary?.emails?.[0] || businessData.email || null,
-        addresses: citationResults.napSummary?.foundAddresses || [],
-        emails: citationResults.napSummary?.emails || [],
-        consistencyScore: napConsistencyScore,
-        inconsistencies: citationResults.inconsistencies || [],
-        inconsistencyCount: citationResults.inconsistencies?.length || 0,
-      },
-
-      socialMediaAnalysis: {
-        socialScore: citationResults.socialSummary?.socialScore || 0,
-        platforms: citationResults.socialSummary?.platforms || [],
-        totalSocialCitations:
-          citationResults.socialSummary?.platforms?.length || 0,
-        facebook: citationResults.socialSummary?.facebook || null,
-        instagram: citationResults.socialSummary?.instagram || null,
-        linkedin: citationResults.socialSummary?.linkedin || null,
-        twitter: citationResults.socialSummary?.twitter || null,
-      },
-
-      reviewAnalysis: {
-        totalReviews: reviewCount,
-        averageRating: rating,
-        reviewPlatforms: reviewResults.reviewPlatforms || null,
-        reviewDistribution: {},
-        competitiveInsights: reviewResults.competitiveInsights || [],
-        improvementOpportunities: reviewResults.improvementOpportunities || [],
-      },
-
-      directoryAnalysis: {
-        fullDirectoryList: citationResults.directoryLinks || [],
-        directoryCount: citationResults.directoryCount || 0,
-        directoryUrls: (citationResults.directoryLinks || [])
-          .map((dir) => dir.link || dir.url)
-          .filter(Boolean),
-        uniqueCount: citationResults.directoryCount || 0,
-      },
-
-      // 🚀 Complete PageSpeed Analysis
-      pagespeedAnalysis: {
-        overallSummary: pagespeedResults.overallSummary || {},
-        insights: pagespeedResults.insights || [],
-        mobileScore: pagespeedResults.overallSummary?.mobileScore || null,
-        desktopScore: pagespeedResults.overallSummary?.desktopScore || null,
-        primaryScore: websiteScore,
-        averageScore: pagespeedResults.overallSummary?.averageScore || websiteScore,
-        primaryMetric: pageSpeed,
-        metrics: {
-          largestContentfulPaint:
-            pagespeedResults.insights?.[0]?.metrics?.largestContentfulPaint ||
-            null,
-          firstContentfulPaint:
-            pagespeedResults.insights?.[0]?.metrics?.firstContentfulPaint ||
-            null,
-          speedIndex:
-            pagespeedResults.insights?.[0]?.metrics?.speedIndex || null,
-          totalBlockingTime:
-            pagespeedResults.insights?.[0]?.metrics?.totalBlockingTime || null,
-          cumulativeLayoutShift:
-            pagespeedResults.insights?.[0]?.metrics?.cumulativeLayoutShift ||
-            null,
-        },
-        recommendations: pagespeedResults.recommendations || [],
-        needsImprovement: websiteScore < 70,
-        criticalIssues: websiteScore < 50,
-        fullResults: pagespeedResults,
-      },
-
-      // 🚀 Complete Keyword Performance Analysis
-      keywordPerformance: {
-        ...keywordResults,
-        primaryKeywords: keywordResults.keywords || keywordResults.primaryKeywords || [],
-        searchVolumes: keywordResults.searchVolumes || [],
-        difficulty: keywordResults.difficulty || [],
-        currentRankings: keywordResults.currentRankings || [],
-        opportunities: keywordResults.opportunities || keywordResults.keywordOpportunities || [],
-        analysis: keywordResults.analysis || {},
-        recommendations: keywordResults.recommendations || [],
-        fullResults: keywordResults,
-      },
-
-      // Citation Analysis
-      citationAnalysis: {
-        tier1Found: foundDomains.map((domain) => getDomainLabel(domain)),
-        tier1Missing: TIER_1_SITES.filter(
-          (site) => !foundDomains.includes(site),
-        ).map((domain) => getDomainLabel(domain)),
-        industryFound: foundOtherSites.map((domain) => getDomainLabel(domain)),
-        industryMissing: OTHER_IMPORTANT_SITES.filter(
-          (site) => !foundOtherSites.includes(site),
-        ).map((domain) => getDomainLabel(domain)),
-        allCitations:
-          citationResults.directoryLinks
-            ?.map((dir) => dir.link || dir.url)
-            .filter(Boolean) || [],
-        totalCount: citationResults.directoryCount || 0,
-        tier1Coverage: tier1DirectoryCoverage,
-        priorityOpportunities: TIER_1_SITES.filter(
-          (site) => !foundDomains.includes(site),
-        )
-          .slice(0, 3)
-          .map((domain) => getDomainLabel(domain)),
-        citationCompletionRate: Math.round(
-          ((foundDomains.length + foundOtherSites.length) /
-            (TIER_1_SITES.length + OTHER_IMPORTANT_SITES.length)) *
-            100,
-        ),
-        fullResults: citationResults,
-      },
-
-      // 🚀 Complete Website Analysis (enhanced)
-      websiteAnalysis: {
-        ...websiteResults,
-        localContentScore,
-        optimizationStatus: websiteResults.localOptimizationStatus || "Unknown",
-        blogActivity: blogLinks,
-        improvementOpportunities: websiteResults.improvementOpportunities || [],
-        fullResults: websiteResults,
-      },
-
-      // 🚀 Complete Business Impact Analysis
-      businessImpact: {
-        trustSignals: Math.round((rating / 5) * 100),
-        estimatedLeadLoss: Math.max(0, 100 - visibilityScore) * 2,
-        urgencyScore: criticalImprovements.length * 30 + moderateImprovements.length * 10,
-        estimatedRevenueImpact: Math.max(0, 100 - visibilityScore) * 1000,
-        customerAcquisitionImpact: Math.max(0, 100 - visibilityScore) * 0.1,
-        competitorThreats: competitors.length,
-        marketPosition: currentRank <= 3 ? "Leading" : currentRank <= 10 ? "Competitive" : "Behind"
-      },
-
-      // 🚀 Complete Content Analysis
-      contentAnalysis: {
-        contentGaps: websiteResults.contentGaps || [],
-        contentOpportunities: websiteResults.contentOpportunities || [],
-        contentQuality: websiteResults.contentQuality || 50,
-        contentFreshness: websiteResults.contentFreshness || 50,
-        blogPostCount: blogLinks.length,
-        contentBenchmark: blogLinks.length >= 6 ? 'Strong' : blogLinks.length >= 3 ? 'Average' : 'Weak',
-        progressToStrong: Math.round((blogLinks.length / 6) * 100)
-      },
-
-      generatedAt: new Date().toISOString(),
-      executionTimeMs,
-      location,
-      city,
-      state,
-      keyword: businessType,
-      marketingGoal,
-      rawBusinessData: competitorResults.businessData || null,
+      servicesFailed: true,
+      recommendations: [
+        'Check service file implementations',
+        'Verify service method exports',
+        'Review error logs for specific service failures'
+      ]
     };
   }
 }
 
-module.exports = new AuditProcessor();
+module.exports = EnhancedAuditProcessor;
